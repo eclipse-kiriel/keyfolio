@@ -110,7 +110,7 @@ export class GoogleDriveService {
     return new Promise((resolve, reject) => {
       try {
         // Request token (triggers Google OAuth popup)
-        this.tokenClient.requestAccessToken({ prompt: 'consent' });
+        this.tokenClient.requestAccessToken({ prompt: '' });
         
         // Listen once for outcome
         const unsub = this.onStatusChange((status) => {

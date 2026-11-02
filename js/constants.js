@@ -18,18 +18,18 @@ export const BUILD_SECTIONS = [
     fields: [
       { key: 'housing', label: '키보드/하우징명', placeholder: '예: tofu60 3.0, Jelly Evolv, F1-8X', required: true },
       { key: 'formFactor', label: '배열 (크기)', placeholder: '예: TKL, 60%, 65%, 75%, 40%, Full, 1800' },
-      { key: 'layout', label: '하판 레이아웃', placeholder: '예: WK, WKL, HHKB' },
+      { key: 'layout', label: '레이아웃', placeholder: '예: WK, WKL, HHKB' },
       { key: 'topColor', label: '상판 색상', placeholder: '예: 라벤더, 아노다이징 블랙, E-White' },
-      { key: 'bottomColor', label: '하판 색상', placeholder: '예: 실버 텍스쳐, 라벤더, 건메탈' },
-      { key: 'weight', label: '무게추', placeholder: '예: 황동 PVD, 미러 크롬, 스테인리스, 황동' }
+      { key: 'bottomColor', label: '하판 색상', placeholder: '필요한 경우 입력' },
+      { key: 'weight', label: '무게추', placeholder: '필요한 경우 입력' }
     ]
   },
   {
     id: 'mount_plate_group',
     title: '마운트 & 보강판 (Mount & Plate)',
     fields: [
-      { key: 'mountType', label: '마운트 방식', placeholder: '예: 탑마운트, 가스켓, O-Ring, 플랫' },
-      { key: 'plate', label: '보강판', placeholder: '예: PC보강, 알루미늄, FR4, POM, 황동' }
+      { key: 'mountType', label: '마운트', placeholder: '예: 탑마운트, 가스켓마운트, 오링마운트' },
+      { key: 'plate', label: '보강판', placeholder: '예: 알루, PC, FR4, POM, 무보강' }
     ]
   },
   {
@@ -37,7 +37,7 @@ export const BUILD_SECTIONS = [
     title: 'PCB & 스테빌라이저 (PCB & Stabilizer)',
     fields: [
       { key: 'pcb', label: 'PCB 기판', placeholder: '예: 베놈, H60, 젠온 60, 수트 기판' },
-      { key: 'pcbType', label: 'PCB 타입', placeholder: '예: 핫스왑, 솔더링, 자석축(HE), 블루투스' },
+      { key: 'pcbType', label: 'PCB 타입', placeholder: '예: 핫스왑, 솔더링' },
       { key: 'stabilizer', label: '스테빌라이저 (기본)', placeholder: '예: 나테빌, 줄테빌, TX AP' },
       { key: 'stabilizerSpbar', label: '스페이스바 스테빌', placeholder: '예: TX AP 롱폴 6.25u' }
     ]
@@ -69,12 +69,17 @@ export const BUILD_SECTIONS = [
   }
 ];
 
+// 마운트 & 보강판 프리셋 선택 항목
+export const MOUNT_PRESETS = ['탑마운트', '바텀마운트', '오링마운트', '가스켓마운트', '스냅핏(키스냅)'];
+export const PLATE_PRESETS = ['알루', 'PC', 'PP', 'POM', 'PEI', '황동', 'FR4', '무보강'];
+export const PCB_TYPE_PRESETS = ['핫스왑', '솔더링'];
+
 // 빌드 상태 옵션
 export const BUILD_STATUS_OPTIONS = [
-  { value: 'completed', label: '완성 (실사용)', color: '#10b981' },
-  { value: 'building', label: '빌드 중 (조립대기)', color: '#f59e0b' },
-  { value: 'stored', label: '보관 중 (소장)', color: '#6366f1' },
-  { value: 'disassembled', label: '분해/교체 예정', color: '#94a3b8' }
+  { value: 'completed', label: '완성', color: '#10b981' },
+  { value: 'building', label: '빌드대기', color: '#f59e0b' },
+  { value: 'stored', label: '보관중', color: '#6366f1' },
+  { value: 'disassembled', label: '분해/리빌드예정', color: '#94a3b8' }
 ];
 
 // 키캡 상태 옵션

@@ -86,38 +86,38 @@
   --shadow-modal: 0 20px 25px -5px rgba(40, 37, 58, 0.09);
 }
 
-/* Optional Dark Theme: Titanium Graphite (다크 테마) */
-[data-theme="titanium"] {
-  --bg-primary: #121316;
-  --bg-secondary: #1a1b1f;
-  --bg-tertiary: #23252a;
-  --bg-card: #1a1b1f;
-  --bg-card-hover: #23252a;
-  --bg-glass: rgba(18, 19, 22, 0.85);
+/* Theme 3: Midnight Dark / Titanium (초기 개발 오리지널 미드나이트 다크 테마) */
+[data-theme="titanium"], [data-theme="midnight-dark"] {
+  --bg-primary: #0e1015;
+  --bg-secondary: #16181f;
+  --bg-tertiary: #1f232d;
+  --bg-card: #16181f;
+  --bg-card-hover: #1e212b;
+  --bg-glass: rgba(14, 16, 21, 0.92);
 
   --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-active: rgba(228, 228, 231, 0.35);
+  --border-active: rgba(228, 228, 231, 0.4);
   --border-glow: transparent;
 
   --accent-primary: #e4e4e7;
-  --accent-primary-hover: #f4f4f5;
+  --accent-primary-hover: #ffffff;
   --accent-secondary: #a1a1aa;
-  --accent-gradient: #23252a;
-  --accent-gradient-orange: #d97706;
+  --accent-gradient: #1f232d;
+  --accent-gradient-orange: #f59e0b;
   --accent-glow: none;
 
   --text-primary: #f4f4f5;
   --text-secondary: #9da1ab;
   --text-muted: #666a75;
-  --text-inverse: #121316;
+  --text-inverse: #0e1015;
 
   --status-completed: #34d399;
   --status-building: #fbbf24;
   --status-stored: #94a3b8;
   --status-danger: #f87171;
 
-  --shadow-card: 0 10px 28px -10px rgba(0, 0, 0, 0.5);
-  --shadow-modal: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  --shadow-card: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+  --shadow-modal: 0 25px 50px -12px rgba(0, 0, 0, 0.85);
 }
 
 :root {
@@ -147,7 +147,7 @@ html {
   color-scheme: light;
 }
 
-[data-theme="titanium"] {
+[data-theme="titanium"], [data-theme="midnight-dark"] {
   color-scheme: dark;
 }
 

@@ -3,10 +3,11 @@
  * Provides offline caching for application shell and assets.
  */
 
-const CACHE_NAME = 'keyfolio-v1.0.3';
+const CACHE_NAME = 'keyfolio-v1.0.4';
 const ASSETS = [
   './',
   './index.html',
+  './theme-preview.html',
   './manifest.json',
   './css/main.css',
   './css/components.css',
@@ -14,6 +15,7 @@ const ASSETS = [
   './js/app.js',
   './js/store.js',
   './js/constants.js',
+  './js/google-drive-service.js',
   './js/firebase-service.js',
   './icons/icon.svg'
 ];

@@ -25,7 +25,7 @@
 
 .kb-card:hover {
   transform: translateY(-2px);
-  border-color: #cbd5e1;
+  border-color: var(--border-active);
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
 }
 
@@ -153,6 +153,42 @@
   background: #fef2f2;
   color: #b91c1c;
   border: 1px solid #fecaca;
+}
+
+/* Dark Theme Badge & Pill Adjustments */
+[data-theme="titanium"] .status-badge.completed,
+[data-theme="midnight-dark"] .status-badge.completed {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+[data-theme="titanium"] .status-badge.building,
+[data-theme="midnight-dark"] .status-badge.building {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+[data-theme="titanium"] .status-badge.stored,
+[data-theme="midnight-dark"] .status-badge.stored {
+  background: rgba(148, 163, 184, 0.15);
+  color: #cbd5e1;
+  border-color: rgba(203, 213, 225, 0.25);
+}
+
+[data-theme="titanium"] .status-badge.disassembled,
+[data-theme="midnight-dark"] .status-badge.disassembled {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+[data-theme="titanium"] .sound-link-badge,
+[data-theme="midnight-dark"] .sound-link-badge {
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.3);
 }
 
 /* Specs Details List */
@@ -475,6 +511,44 @@
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 0.85rem;
+}
+
+/* Quick Preset Chips for Inputs (Mount, Plate, etc.) */
+.preset-chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+
+.btn-preset-chip {
+  appearance: none;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 0.25rem 0.55rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  line-height: 1.25;
+  user-select: none;
+}
+
+.btn-preset-chip:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+  border-color: var(--border-active);
+}
+
+.btn-preset-chip.active {
+  background: var(--accent-primary);
+  color: var(--text-inverse);
+  border-color: var(--accent-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
 }
 
 /* Switch Lube Radio Pills */

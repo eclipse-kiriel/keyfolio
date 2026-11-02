@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#0b0d14">
-  <meta name="description" content="커스텀 키보드 빌드 스펙, 키캡 소장 정보, 유연한 커스텀 옵션을 관리하고 PC/모바일 구글 클라우드로 실시간 동기화하는 웹 앱">
+  <meta name="description" content="커스텀 키보드 빌드 스펙, 키캡 소장 정보, 빌드 사양을 관리하고 PC/모바일 구글 드라이브로 실시간 동기화하는 웹 앱">
   <title>Keyfolio - 커스텀 키보드 & 키캡 빌드 매니저</title>
 
   <!-- PWA Manifest & App Icons -->
@@ -14,8 +14,8 @@
   <link rel="apple-touch-icon" href="icons/icon.svg">
 
   <!-- Stylesheets -->
-  <link rel="stylesheet" href="css/main.css?v=5">
-  <link rel="stylesheet" href="css/components.css?v=5">
+  <link rel="stylesheet" href="css/main.css?v=6">
+  <link rel="stylesheet" href="css/components.css?v=6">
   <link rel="stylesheet" href="css/responsive.css">
 
   <!-- Instant Theme Initializer -->
@@ -24,6 +24,8 @@
       let savedTheme = localStorage.getItem('keyvault_theme') || 'warm-beige';
       if (savedTheme === 'linear-light' || savedTheme === 'soft-sage' || savedTheme === 'warm-stone') savedTheme = 'warm-beige';
       if (savedTheme === 'dusk-slate' || savedTheme === 'cloud-azure') savedTheme = 'lavender-mist';
+      if (savedTheme === 'midnight-dark') savedTheme = 'titanium';
+      if (!['warm-beige', 'lavender-mist', 'titanium'].includes(savedTheme)) savedTheme = 'warm-beige';
       document.documentElement.setAttribute('data-theme', savedTheme);
     })();
   </script>
@@ -93,10 +95,11 @@
           </svg>
         </button>
 
-        <div class="theme-select-container" title="모던 라이트 테마 즉시 변경">
+        <div class="theme-select-container" title="색상 테마 즉시 변경">
           <select id="quick-theme-select" class="nav-theme-select" aria-label="테마 선택">
             <option value="warm-beige">A. 소프트 웜 베이지</option>
             <option value="lavender-mist">B. 모던 라벤더 미스트</option>
+            <option value="titanium">C. 미드나이트 다크 (초기 테마)</option>
           </select>
         </div>
         <a href="theme-preview.html" class="btn btn-icon" title="색상 테마 전체 비교 & 상세 보기">
@@ -137,10 +140,10 @@
 
         <select id="status-filter-select" class="filter-select">
           <option value="all">모든 상태 보기</option>
-          <option value="completed">완성 (실사용)</option>
-          <option value="building">빌드 중 (조립대기)</option>
-          <option value="stored">보관 중 (소장)</option>
-          <option value="disassembled">분해/교체 예정</option>
+          <option value="completed">완성</option>
+          <option value="building">빌드대기</option>
+          <option value="stored">보관중</option>
+          <option value="disassembled">분해/리빌드예정</option>
         </select>
       </div>
     </section>
@@ -184,10 +187,10 @@
             <div class="form-group">
               <label class="form-label" for="kb-status-select">빌드 상태</label>
               <select id="kb-status-select" class="form-select">
-                <option value="completed">완성 (실사용)</option>
-                <option value="building">빌드 중 (조립대기)</option>
-                <option value="stored">보관 중 (소장)</option>
-                <option value="disassembled">분해/교체 예정</option>
+                <option value="completed">완성</option>
+                <option value="building">빌드대기</option>
+                <option value="stored">보관중</option>
+                <option value="disassembled">분해/리빌드예정</option>
               </select>
             </div>
           </div>
@@ -221,7 +224,7 @@
               </div>
 
               <div class="form-group">
-                <label class="form-label" for="field-layout">하판 레이아웃</label>
+                <label class="form-label" for="field-layout">레이아웃</label>
                 <select id="field-layout" class="form-select">
                   <option value="">선택 안 함</option>
                   <option value="WK">WK (Winkey)</option>
@@ -240,11 +243,11 @@
               </div>
               <div class="form-group">
                 <label class="form-label" for="field-bottomColor">하판 색상</label>
-                <input type="text" id="field-bottomColor" class="form-input" placeholder="예: 실버텍스쳐">
+                <input type="text" id="field-bottomColor" class="form-input" placeholder="필요한 경우 입력">
               </div>
               <div class="form-group">
                 <label class="form-label" for="field-weight">무게추</label>
-                <input type="text" id="field-weight" class="form-input" placeholder="예: 황동 PVD, 미러 크롬">
+                <input type="text" id="field-weight" class="form-input" placeholder="필요한 경우 입력">
               </div>
             </div>
           </div>
@@ -262,11 +265,28 @@
             <div class="form-grid-2">
               <div class="form-group">
                 <label class="form-label" for="field-mountType">마운트</label>
-                <input type="text" id="field-mountType" class="form-input" placeholder="예: 탑마운트, 가스켓, O-Ring">
+                <input type="text" id="field-mountType" class="form-input" placeholder="직접 입력 또는 아래 항목 선택">
+                <div class="preset-chips-wrap" data-target="field-mountType">
+                  <button type="button" class="btn-preset-chip" data-val="탑마운트">탑마운트</button>
+                  <button type="button" class="btn-preset-chip" data-val="바텀마운트">바텀마운트</button>
+                  <button type="button" class="btn-preset-chip" data-val="오링마운트">오링마운트</button>
+                  <button type="button" class="btn-preset-chip" data-val="가스켓마운트">가스켓마운트</button>
+                  <button type="button" class="btn-preset-chip" data-val="스냅핏(키스냅)">스냅핏(키스냅)</button>
+                </div>
               </div>
               <div class="form-group">
                 <label class="form-label" for="field-plate">보강판</label>
-                <input type="text" id="field-plate" class="form-input" placeholder="예: PC보강, 알루미늄, FR4, POM">
+                <input type="text" id="field-plate" class="form-input" placeholder="직접 입력 또는 아래 항목 선택">
+                <div class="preset-chips-wrap" data-target="field-plate">
+                  <button type="button" class="btn-preset-chip" data-val="알루">알루</button>
+                  <button type="button" class="btn-preset-chip" data-val="PC">PC</button>
+                  <button type="button" class="btn-preset-chip" data-val="PP">PP</button>
+                  <button type="button" class="btn-preset-chip" data-val="POM">POM</button>
+                  <button type="button" class="btn-preset-chip" data-val="PEI">PEI</button>
+                  <button type="button" class="btn-preset-chip" data-val="황동">황동</button>
+                  <button type="button" class="btn-preset-chip" data-val="FR4">FR4</button>
+                  <button type="button" class="btn-preset-chip" data-val="무보강">무보강</button>
+                </div>
               </div>
             </div>
           </div>
@@ -283,15 +303,15 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label">흡음재 사용 여부</label>
+              <label class="form-label">흡음재</label>
               <div class="lube-radio-group">
                 <div class="lube-radio-pill">
                   <input type="radio" id="foam-none" name="foamType" value="노폼" checked>
-                  <label for="foam-none">노폼 (클래키/순정)</label>
+                  <label for="foam-none">노폼</label>
                 </div>
                 <div class="lube-radio-pill">
                   <input type="radio" id="foam-used" name="foamType" value="폼">
-                  <label for="foam-used">폼 (흡음재 적용)</label>
+                  <label for="foam-used">폼</label>
                 </div>
               </div>
             </div>
@@ -300,8 +320,7 @@
             <div id="foam-options-container"
               style="display: none; background: var(--bg-primary); padding: 0.85rem; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-top: 0.25rem;">
               <label class="form-label"
-                style="margin-bottom: 0.5rem; display: block; color: var(--accent-secondary);">적용할 폼 선택 (중복 선택
-                가능)</label>
+                style="margin-bottom: 0.5rem; display: block; color: var(--accent-secondary);">세부 폼 선택 (중복 가능)</label>
               <div style="display: flex; gap: 1.25rem; flex-wrap: wrap;">
                 <label
                   style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem; color: var(--text-primary);">
@@ -339,7 +358,11 @@
               </div>
               <div class="form-group">
                 <label class="form-label" for="field-pcbType">PCB 타입</label>
-                <input type="text" id="field-pcbType" class="form-input" placeholder="예: 핫스왑, 솔더링, 자석축(HE)">
+                <input type="text" id="field-pcbType" class="form-input" placeholder="직접 입력 또는 아래 항목 선택">
+                <div class="preset-chips-wrap" data-target="field-pcbType">
+                  <button type="button" class="btn-preset-chip" data-val="핫스왑">핫스왑</button>
+                  <button type="button" class="btn-preset-chip" data-val="솔더링">솔더링</button>
+                </div>
               </div>
             </div>
             <div class="form-grid-2" style="margin-top: 0.5rem;">
@@ -504,7 +527,7 @@
                   <line x1="9" y1="8" x2="15" y2="8"></line>
                   <line x1="17" y1="16" x2="23" y2="16"></line>
                 </svg>
-                추가 옵션 필드 (유연한 커스텀 항목)
+                추가 옵션 필드
               </h4>
               <button type="button" id="btn-add-dynamic-field" class="btn btn-secondary btn-sm"
                 style="font-size: 0.8rem; padding: 0.35rem 0.75rem;">
@@ -616,7 +639,7 @@
                   <line x1="9" y1="8" x2="15" y2="8"></line>
                   <line x1="17" y1="16" x2="23" y2="16"></line>
                 </svg>
-                추가 옵션 필드 (보유 킷, 구매처 등)
+                추가 옵션 필드
               </h4>
               <button type="button" id="btn-add-keycap-dynamic-field" class="btn btn-secondary btn-sm"
                 style="font-size: 0.8rem; padding: 0.35rem 0.75rem;">

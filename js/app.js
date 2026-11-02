@@ -246,6 +246,34 @@ class App {
       });
     }
 
+    // Quick Preset Chips Handler (Mount, Plate, etc.)
+    document.querySelectorAll('.preset-chips-wrap').forEach(wrap => {
+      const targetId = wrap.getAttribute('data-target');
+      const targetInput = document.getElementById(targetId);
+      if (!targetInput) return;
+
+      wrap.querySelectorAll('.btn-preset-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const val = btn.getAttribute('data-val');
+          if (targetInput.value.trim() === val) {
+            targetInput.value = '';
+            btn.classList.remove('active');
+          } else {
+            targetInput.value = val;
+            wrap.querySelectorAll('.btn-preset-chip').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+          }
+        });
+      });
+
+      targetInput.addEventListener('input', () => {
+        const current = targetInput.value.trim();
+        wrap.querySelectorAll('.btn-preset-chip').forEach(btn => {
+          btn.classList.toggle('active', btn.getAttribute('data-val') === current);
+        });
+      });
+    });
+
     // Keycap Modal: Status Select Change Handler (Toggle mounted keyboard field)
     this.kcStatusSelect.addEventListener('change', (e) => {
       if (e.target.value === 'mounted') {
@@ -364,7 +392,8 @@ class App {
     const quickThemeSelect = document.getElementById('quick-theme-select');
     if (quickThemeSelect) {
       let activeTheme = localStorage.getItem('keyvault_theme') || 'warm-beige';
-      if (activeTheme !== 'lavender-mist') activeTheme = 'warm-beige';
+      if (activeTheme === 'midnight-dark') activeTheme = 'titanium';
+      if (!['warm-beige', 'lavender-mist', 'titanium'].includes(activeTheme)) activeTheme = 'warm-beige';
       quickThemeSelect.value = activeTheme;
       quickThemeSelect.addEventListener('change', (e) => {
         const selectedTheme = e.target.value;
@@ -847,8 +876,10 @@ class App {
   appendDynamicFieldRow(container, label = '', value = '') {
     const row = document.createElement('div');
     row.className = 'dynamic-row';
+    const isKeycap = container === this.keycapDynamicFieldsList;
+    const placeholderText = isKeycap ? '옵션명 (예: 추가 파츠, 구매처)' : '옵션명 (예: 추가 파츠, 구매처)';
     row.innerHTML = `
-      <input type="text" class="form-input dynamic-label" placeholder="옵션명 (예: 추가 파츠, 타건감)" value="${this.escape(label)}">
+      <input type="text" class="form-input dynamic-label" placeholder="${placeholderText}" value="${this.escape(label)}">
       <input type="text" class="form-input dynamic-value" placeholder="내용" value="${this.escape(value)}">
       <button type="button" class="btn-remove-row" title="필드 삭제">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -952,8 +983,11 @@ class App {
     document.getElementById('field-weight').value = fields.weight || '';
     document.getElementById('field-mountType').value = fields.mountType || '';
     document.getElementById('field-plate').value = fields.plate || '';
+    this.syncPresetChips('field-mountType');
+    this.syncPresetChips('field-plate');
     document.getElementById('field-pcb').value = fields.pcb || '';
     document.getElementById('field-pcbType').value = fields.pcbType || '핫스왑';
+    this.syncPresetChips('field-pcbType');
     document.getElementById('field-stabilizer').value = fields.stabilizer || '';
     document.getElementById('field-stabilizerSpbar').value = fields.stabilizerSpbar || '';
     document.getElementById('field-switches').value = fields.switches || '';
@@ -1019,6 +1053,16 @@ class App {
     }
 
     this.openModal(this.keyboardModal, '#kb-name-input');
+  }
+
+  syncPresetChips(targetId) {
+    const input = document.getElementById(targetId);
+    const wrap = document.querySelector(`.preset-chips-wrap[data-target="${targetId}"]`);
+    if (!input || !wrap) return;
+    const val = input.value.trim();
+    wrap.querySelectorAll('.btn-preset-chip').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-val') === val);
+    });
   }
 
   handleKeyboardSubmit(e) {
@@ -1236,7 +1280,7 @@ class App {
           <div class="spec-group-title">하우징 (Housing)</div>
           <div class="spec-item"><span class="spec-label">키보드 이름</span><span class="spec-val">${this.escape(kb.name)}</span></div>
           ${f.formFactor ? `<div class="spec-item"><span class="spec-label">배열 (크기)</span><span class="spec-val" style="color: var(--accent-secondary); font-weight: 600;">${this.escape(f.formFactor)}</span></div>` : ''}
-          ${f.layout ? `<div class="spec-item"><span class="spec-label">하판 레이아웃</span><span class="spec-val" style="color: var(--accent-secondary); font-weight: 600;">${this.escape(f.layout)}</span></div>` : ''}
+          ${f.layout ? `<div class="spec-item"><span class="spec-label">레이아웃</span><span class="spec-val" style="color: var(--accent-secondary); font-weight: 600;">${this.escape(f.layout)}</span></div>` : ''}
           ${f.topColor ? `<div class="spec-item"><span class="spec-label">상판 색상</span><span class="spec-val">${this.escape(f.topColor)}</span></div>` : ''}
           ${f.bottomColor ? `<div class="spec-item"><span class="spec-label">하판 색상</span><span class="spec-val">${this.escape(f.bottomColor)}</span></div>` : ''}
           ${f.weight ? `<div class="spec-item"><span class="spec-label">무게추</span><span class="spec-val">${this.escape(f.weight)}</span></div>` : ''}
@@ -1289,7 +1333,7 @@ class App {
         <!-- 7. 메모 -->
         ${kb.notes ? `
           <div class="spec-group-box">
-            <div class="spec-group-title">📝 메모</div>
+            <div class="spec-group-title">메모</div>
             <div style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5;">${this.escape(kb.notes)}</div>
           </div>
         ` : ''}
