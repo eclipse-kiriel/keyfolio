@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Keyfolio - 웜 베이지 vs 모던 라벤더 테마 선택</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&family=Outfit:wght@500;600;700&family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Pretendard', 'Outfit', -apple-system, sans-serif;
+      background: #f1f0ee;
+      color: #333;
+      line-height: 1.5;
+      padding: 2.5rem 1.25rem 4rem;
+      transition: background 0.3s ease;
+    }
+
+    .container {
+      max-width: 1040px;
+      margin: 0 auto;
+    }
+
+    .header-section {
+      text-align: center;
+      margin-bottom: 2.25rem;
+    }
+
+    .badge-tag {
+      display: inline-block;
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 0.3rem 0.85rem;
+      border-radius: 9999px;
+      background: #e4e2de;
+      color: #55504a;
+      margin-bottom: 0.75rem;
+      letter-spacing: 0.03em;
+    }
+
+    .header-section h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #2b2825;
+      letter-spacing: -0.02em;
+    }
+
+    .header-section p {
+      font-size: 1rem;
+      color: #66615b;
+      margin-top: 0.4rem;
+    }
+
+    /* 2 Columns Showdown Grid */
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.75rem;
+    }
+
+    @media (max-width: 768px) {
+      .compare-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Option Card Wrapper */
+    .theme-panel {
+      border-radius: 18px;
+      padding: 1.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      border: 1px solid;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      position: relative;
+    }
+
+    .theme-panel:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+    }
+
+    .theme-panel.active-choice {
+      outline: 2.5px solid;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+    }
+
+    .theme-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .theme-header h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .theme-header p {
+      font-size: 0.88rem;
+      margin-top: 0.2rem;
+    }
+
+    .tag-pill {
+      font-size: 0.76rem;
+      font-weight: 700;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      border: 1px solid;
+      white-space: nowrap;
+    }
+
+    /* Swatches Palette Row */
+    .palette-track {
+      display: flex;
+      height: 32px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .swatch {
+      flex: 1;
+      height: 100%;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.68rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+    }
+
+    /* Mini Live Card Mockup */
+    .mockup-card {
+      border-radius: 12px;
+      padding: 1.25rem;
+      border: 1px solid;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    }
+
+    .mockup-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+
+    .mockup-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+    }
+
+    .mockup-sub {
+      font-size: 0.78rem;
+      margin-top: 0.15rem;
+    }
+
+    .status-badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      border: 1px solid;
+    }
+
+    .mockup-specs {
+      border-radius: 8px;
+      padding: 0.75rem 0.85rem;
+      font-size: 0.84rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      border: 1px solid;
+    }
+
+    .spec-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .spec-key {
+      font-size: 0.78rem;
+      font-weight: 500;
+    }
+
+    .spec-value {
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+    }
+
+    .mockup-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
+    }
+
+    .btn-mock-sub {
+      flex: 1;
+      padding: 0.5rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border: 1px solid;
+      background: transparent;
+      text-align: center;
+      cursor: default;
+    }
+
+    .btn-mock-main {
+      flex: 1.2;
+      padding: 0.5rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border: none;
+      text-align: center;
+      cursor: default;
+    }
+
+    /* Apply Button */
+    .btn-apply {
+      width: 100%;
+      padding: 0.85rem 1rem;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+      margin-top: auto;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    }
+
+    .btn-apply:hover {
+      filter: brightness(0.92);
+      transform: translateY(-1px);
+    }
+
+    /* =========================================================================
+       THEME 1: 소프트 웜 베이지 (Soft Warm Beige)
+       ========================================================================= */
+    .panel-beige {
+      background: #f7f5f0;
+      border-color: #e4ded4;
+      color: #38342e;
+    }
+    .panel-beige.active-choice {
+      outline-color: #847363;
+    }
+    .panel-beige .theme-header p { color: #69635a; }
+    .panel-beige .tag-pill { background: #ede9e1; border-color: #dcd5c9; color: #5a5248; }
+    .panel-beige .mockup-card { background: #fdfcfb; border-color: #e4ded4; }
+    .panel-beige .mockup-sub { color: #69635a; }
+    .panel-beige .status-badge { background: #edf4ee; color: #2a5c3c; border-color: #cde2d3; }
+    .panel-beige .mockup-specs { background: #f7f5f0; border-color: #e4ded4; }
+    .panel-beige .spec-key { color: #787066; }
+    .panel-beige .spec-value { color: #2d2924; }
+    .panel-beige .btn-mock-sub { border-color: #dcd5c9; color: #5a5248; }
+    .panel-beige .btn-mock-main { background: #847363; color: #ffffff; }
+    .panel-beige .btn-apply { background: #847363; color: #ffffff; }
+
+    /* =========================================================================
+       THEME 2: 모던 라벤더 미스트 (Modern Lavender Mist)
+       ========================================================================= */
+    .panel-lavender {
+      background: #f3f2f8;
+      border-color: #dedae9;
+      color: #28253a;
+    }
+    .panel-lavender.active-choice {
+      outline-color: #6a58a3;
+    }
+    .panel-lavender .theme-header p { color: #5e5875; }
+    .panel-lavender .tag-pill { background: #e7e5f1; border-color: #d4cfdf; color: #4e4470; }
+    .panel-lavender .mockup-card { background: #fcfbff; border-color: #dedae9; }
+    .panel-lavender .mockup-sub { color: #5e5875; }
+    .panel-lavender .status-badge { background: #edf0fa; color: #3d3b76; border-color: #cfd4ee; }
+    .panel-lavender .mockup-specs { background: #f3f2f8; border-color: #dedae9; }
+    .panel-lavender .spec-key { color: #6f6788; }
+    .panel-lavender .spec-value { color: #1e1b2e; }
+    .panel-lavender .btn-mock-sub { border-color: #d4cfdf; color: #4e4470; }
+    .panel-lavender .btn-mock-main { background: #6a58a3; color: #ffffff; }
+    .panel-lavender .btn-apply { background: #6a58a3; color: #ffffff; }
+
+    /* Bottom Control Bar */
+    .bottom-bar {
+      margin-top: 2.25rem;
+      background: #ffffff;
+      border: 1px solid #e2ded4;
+      border-radius: 14px;
+      padding: 1.15rem 1.6rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+    }
+
+    .bottom-status {
+      font-size: 0.95rem;
+      color: #4a453f;
+    }
+
+    .bottom-status strong {
+      color: #1e1c1a;
+      font-weight: 700;
+    }
+
+    .btn-nav-main {
+      padding: 0.65rem 1.25rem;
+      background: #2b2825;
+      color: #ffffff;
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: background 0.2s ease;
+    }
+
+    .btn-nav-main:hover {
+      background: #44403c;
+    }
+
+    /* Toast */
+    .toast-box {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #2b2825;
+      color: #ffffff;
+      padding: 0.85rem 1.6rem;
+      border-radius: 9999px;
+      font-size: 0.94rem;
+      font-weight: 600;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.25s ease;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
+      z-index: 100;
+      white-space: nowrap;
+    }
+
+    .toast-box.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header-section">
+      <span class="badge-tag">Curated 2-Choice Comparison</span>
+      <h1>웜 베이지 vs 모던 라벤더 테마 비교</h1>
+      <p>어두운 갈색을 뺀 포근한 내추럴 베이지와 은은한 보랏빛의 라벤더 중 마음에 드는 톤을 선택해보세요.</p>
+    </div>
+
+    <div class="compare-grid">
+
+      <!-- THEME A: 소프트 웜 베이지 -->
+      <section id="panel-warm-beige" class="theme-panel panel-beige">
+        <div class="theme-header">
+          <div>
+            <h2>A. 소프트 웜 베이지 (Soft Warm Beige)</h2>
+            <p>갈색기 없는 내추럴 오트 베이지 & 차분한 웜 차콜</p>
+          </div>
+          <span class="tag-pill">Soft Beige</span>
+        </div>
+
+        <div class="palette-track">
+          <div class="swatch" style="background: #f7f5f0; color: #5a5248;" title="배경 #f7f5f0">#f7f5f0</div>
+          <div class="swatch" style="background: #fdfcfb; color: #5a5248;" title="카드 #fdfcfb">#fdfcfb</div>
+          <div class="swatch" style="background: #e4ded4; color: #5a5248;" title="보더 #e4ded4">#e4ded4</div>
+          <div class="swatch" style="background: #847363; color: #ffffff;" title="포인트 #847363">#847363</div>
+          <div class="swatch" style="background: #38342e; color: #ffffff;" title="텍스트 #38342e">#38342e</div>
+        </div>
+
+        <!-- Live Mockup Card -->
+        <div class="mockup-card">
+          <div class="mockup-top">
+            <div>
+              <div class="mockup-title">Tofu60 3.0 Redux</div>
+              <div class="mockup-sub">하우징: 아노다이징 실버 / 황동 무게추</div>
+            </div>
+            <span class="status-badge">완성 (실사용)</span>
+          </div>
+
+          <div class="mockup-specs">
+            <div class="spec-row">
+              <span class="spec-key">스위치</span>
+              <span class="spec-value">게이트론 델타</span>
+            </div>
+            <div class="spec-row">
+              <span class="spec-key">윤활 여부</span>
+              <span class="spec-value">손윤</span>
+            </div>
+            <div class="spec-row">
+              <span class="spec-key">장착 키캡</span>
+              <span class="spec-value">GMK Bento R2</span>
+            </div>
+            <div class="spec-row">
+              <span class="spec-key">보강판</span>
+              <span class="spec-value">FR4 하프</span>
+            </div>
+          </div>
+
+          <div class="mockup-actions">
+            <div class="btn-mock-sub">명세서 복사</div>
+            <div class="btn-mock-main">빌드 수정</div>
+          </div>
+        </div>
+
+        <button type="button" class="btn-apply" onclick="applyTheme('warm-beige', 'A. 소프트 웜 베이지')">
+          A. 소프트 웜 베이지 선택
+        </button>
+      </section>
+
+      <!-- THEME B: 모던 라벤더 미스트 -->
+      <section id="panel-lavender-mist" class="theme-panel panel-lavender">
+        <div class="theme-header">
+          <div>
+            <h2>B. 모던 라벤더 미스트 (Modern Lavender)</h2>
+            <p>보랏빛이 은은하게 감도는 우아하고 세련된 슬레이트</p>
+          </div>
+          <span class="tag-pill">Lilac Mist</span>
+        </div>
+
+        <div class="palette-track">
+          <div class="swatch" style="background: #f3f2f8; color: #4e4470;" title="배경 #f3f2f8">#f3f2f8</div>
+          <div class="swatch" style="background: #fcfbff; color: #4e4470;" title="카드 #fcfbff">#fcfbff</div>
+          <div class="swatch" style="background: #dedae9; color: #4e4470;" title="보더 #dedae9">#dedae9</div>
+          <div class="swatch" style="background: #6a58a3; color: #ffffff;" title="포인트 #6a58a3">#6a58a3</div>
+          <div class="swatch" style="background: #28253a; color: #ffffff;" title="텍스트 #28253a">#28253a</div>
+        </div>
+
+        <!-- Live Mockup Card -->
+        <div class="mockup-card">
+          <div class="mockup-top">
+            <div>
+              <div class="mockup-title">Tofu60 3.0 Redux</div>
+              <div class="mockup-sub">하우징: 아노다이징 라벤더 / 황동 무게추</div>
+            </div>
+            <span class="status-badge">완성 (실사용)</span>
+          </div>
+
+          <div class="mockup-specs">
+            <div class="spec-row">
+              <span class="spec-key">스위치</span>
+              <span class="spec-value">게이트론 델타</span>
+            </div>
+            <div class="spec-row">
+              <span class="spec-key">윤활 여부</span>
+              <span class="spec-value">손윤</span>
+            </div>
+            <div class="spec-row">
+              <span class="spec-key">장착 키캡</span>
+              <span class="spec-value">GMK Bento R2</span>
+            </div>
+            <div class="spec-row">
+              <span class="spec-key">보강판</span>
+              <span class="spec-value">FR4 하프</span>
+            </div>
+          </div>
+
+          <div class="mockup-actions">
+            <div class="btn-mock-sub">명세서 복사</div>
+            <div class="btn-mock-main">빌드 수정</div>
+          </div>
+        </div>
+
+        <button type="button" class="btn-apply" onclick="applyTheme('lavender-mist', 'B. 모던 라벤더 미스트')">
+          B. 모던 라벤더 미스트 선택
+        </button>
+      </section>
+
+    </div>
+
+    <!-- Bottom Status Bar -->
+    <div class="bottom-bar">
+      <div class="bottom-status">
+        현재 적용된 테마: <strong id="current-label">A. 소프트 웜 베이지</strong>
+      </div>
+      <a href="index.html" class="btn-nav-main">메인 보관함에서 확인하기</a>
+    </div>
+  </div>
+
+  <div id="toast" class="toast-box">테마가 성공적으로 적용되었습니다.</div>
+
+  <script>
+    const THEMES = {
+      'warm-beige': {
+        name: 'A. 소프트 웜 베이지',
+        bodyBg: '#f7f5f0',
+        panelId: 'panel-warm-beige'
+      },
+      'lavender-mist': {
+        name: 'B. 모던 라벤더 미스트',
+        bodyBg: '#f3f2f8',
+        panelId: 'panel-lavender-mist'
+      }
+    };
+
+    function updateActiveUI(themeKey) {
+      const info = THEMES[themeKey] || THEMES['warm-beige'];
+      document.getElementById('current-label').textContent = info.name;
+      document.body.style.background = info.bodyBg;
+
+      document.querySelectorAll('.theme-panel').forEach(p => p.classList.remove('active-choice'));
+      const activePanel = document.getElementById(info.panelId);
+      if (activePanel) activePanel.classList.add('active-choice');
+    }
+
+    function applyTheme(themeKey, themeName) {
+      localStorage.setItem('keyvault_theme', themeKey);
+      updateActiveUI(themeKey);
+
+      const toast = document.getElementById('toast');
+      toast.textContent = `'${themeName}' 테마가 적용되었습니다. 메인 앱에 바로 반영됩니다.`;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2500);
+    }
+
+    // Init
+    let saved = localStorage.getItem('keyvault_theme') || 'warm-beige';
+    if (!THEMES[saved]) saved = 'warm-beige';
+    updateActiveUI(saved);
+  </script>
+</body>
+</html>

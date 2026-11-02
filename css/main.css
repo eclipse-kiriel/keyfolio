@@ -1,0 +1,495 @@
+/* ==========================================================================
+   Custom Keyboard Manager - Modern Dark Aesthetics & Design System
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;500;600;700;800&family=Pretendard:wght@300;400;500;600;700;800&display=swap');
+
+/* ==========================================================================
+   Design System Themes (Titanium, Monochrome, Retro, Sage)
+   ========================================================================== */
+
+/* ==========================================================================
+   Design System Themes (Light Themes: Pure Light, Warm Cream, Nordic, Silver)
+   ========================================================================== */
+
+/* ==========================================================================
+/* ==========================================================================
+/* ==========================================================================
+   Design System Themes (Curated 2 Themes: Warm Beige vs Lavender Mist)
+   ========================================================================== */
+
+/* Theme 1: Soft Warm Beige (갈색기를 뺀 포근하고 부드러운 내추럴 베이지) */
+:root, [data-theme="warm-beige"], [data-theme="warm-stone"], [data-theme="soft-sage"], [data-theme="linear-light"] {
+  --bg-primary: #f7f5f0;
+  --bg-secondary: #ede9e1;
+  --bg-tertiary: #e4ded4;
+  --bg-card: #fdfcfb;
+  --bg-card-hover: #ffffff;
+  --bg-glass: rgba(247, 245, 240, 0.94);
+
+  --border-subtle: #e4ded4;
+  --border-active: #7d6e5f;
+  --border-glow: transparent;
+
+  --accent-primary: #847363;
+  --accent-primary-hover: #6e5f50;
+  --accent-secondary: #69635a;
+  --accent-gradient: #ede9e1;
+  --accent-gradient-orange: #b36e32;
+  --accent-glow: none;
+
+  --text-primary: #38342e;
+  --text-secondary: #69635a;
+  --text-muted: #968e83;
+  --text-inverse: #ffffff;
+
+  --status-completed: #2f6343;
+  --status-building: #a86c2e;
+  --status-stored: #69635a;
+  --status-danger: #b84343;
+
+  --shadow-card: 0 1px 4px rgba(56, 52, 46, 0.04), 0 1px 2px rgba(56, 52, 46, 0.02);
+  --shadow-modal: 0 20px 25px -5px rgba(56, 52, 46, 0.08), 0 8px 10px -6px rgba(56, 52, 46, 0.03);
+}
+
+/* Theme 2: Modern Lavender Mist (보랏빛이 은은하게 감도는 세련된 라벤더) */
+[data-theme="lavender-mist"], [data-theme="dusk-slate"], [data-theme="cloud-azure"], [data-theme="electric-cobalt"] {
+  --bg-primary: #f3f2f8;
+  --bg-secondary: #e7e5f1;
+  --bg-tertiary: #dedae9;
+  --bg-card: #fcfbff;
+  --bg-card-hover: #ffffff;
+  --bg-glass: rgba(243, 242, 248, 0.94);
+
+  --border-subtle: #dedae9;
+  --border-active: #6a58a3;
+  --border-glow: transparent;
+
+  --accent-primary: #6a58a3;
+  --accent-primary-hover: #58478f;
+  --accent-secondary: #5e5875;
+  --accent-gradient: #e7e5f1;
+  --accent-gradient-orange: #be7538;
+  --accent-glow: none;
+
+  --text-primary: #28253a;
+  --text-secondary: #5e5875;
+  --text-muted: #8e87a5;
+  --text-inverse: #ffffff;
+
+  --status-completed: #2c6444;
+  --status-building: #aa6d32;
+  --status-stored: #6a58a3;
+  --status-danger: #bd454f;
+
+  --shadow-card: 0 1px 4px rgba(40, 37, 58, 0.04), 0 1px 2px rgba(40, 37, 58, 0.02);
+  --shadow-modal: 0 20px 25px -5px rgba(40, 37, 58, 0.09);
+}
+
+/* Optional Dark Theme: Titanium Graphite (다크 테마) */
+[data-theme="titanium"] {
+  --bg-primary: #121316;
+  --bg-secondary: #1a1b1f;
+  --bg-tertiary: #23252a;
+  --bg-card: #1a1b1f;
+  --bg-card-hover: #23252a;
+  --bg-glass: rgba(18, 19, 22, 0.85);
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-active: rgba(228, 228, 231, 0.35);
+  --border-glow: transparent;
+
+  --accent-primary: #e4e4e7;
+  --accent-primary-hover: #f4f4f5;
+  --accent-secondary: #a1a1aa;
+  --accent-gradient: #23252a;
+  --accent-gradient-orange: #d97706;
+  --accent-glow: none;
+
+  --text-primary: #f4f4f5;
+  --text-secondary: #9da1ab;
+  --text-muted: #666a75;
+  --text-inverse: #121316;
+
+  --status-completed: #34d399;
+  --status-building: #fbbf24;
+  --status-stored: #94a3b8;
+  --status-danger: #f87171;
+
+  --shadow-card: 0 10px 28px -10px rgba(0, 0, 0, 0.5);
+  --shadow-modal: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+}
+
+:root {
+  /* Typography */
+  --font-main: 'Pretendard', 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Layout & Geometry */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-full: 9999px;
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Reset & Base Styles */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  color-scheme: light;
+}
+
+[data-theme="titanium"] {
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-main);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-primary);
+}
+
+/* Layout Containers */
+.app-container {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* Header & Navigation Bar */
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  background: var(--bg-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  position: sticky;
+  top: 1rem;
+  z-index: 50;
+  box-shadow: var(--shadow-card);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  text-decoration: none;
+  color: var(--text-primary);
+}
+
+.brand-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--accent-primary);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-inverse);
+}
+
+.brand-info h1 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.brand-info span {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Nav Tabs - Modern Pill Track (Linear / Apple style) */
+.nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--bg-secondary);
+  padding: 0.25rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-subtle);
+}
+
+.nav-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.15rem;
+  border-radius: var(--radius-full);
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-main);
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.nav-tab-btn:hover {
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.nav-tab-btn.active {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.tab-badge {
+  background: var(--bg-tertiary);
+  font-size: 0.75rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.nav-tab-btn.active .tab-badge {
+  background: var(--accent-primary);
+  color: var(--text-inverse);
+}
+
+/* Nav Actions */
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Quick Theme Select in Navbar */
+.theme-select-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.nav-theme-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.45rem 1.85rem 0.45rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234b5563' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+}
+
+.nav-theme-select:hover {
+  background-color: var(--bg-tertiary);
+  border-color: var(--text-secondary);
+}
+
+.nav-theme-select:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+
+/* Hero & Controls Section */
+.controls-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.controls-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.page-title-group h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.page-title-group p {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  background: var(--bg-card);
+  padding: 0.85rem 1.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  backdrop-filter: blur(10px);
+}
+
+.search-box {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+}
+
+.search-box svg {
+  position: absolute;
+  left: 0.9rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.65rem 1rem 0.65rem 2.6rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-main);
+  font-size: 0.9rem;
+  transition: all var(--transition-fast);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--border-active);
+  box-shadow: 0 0 0 2px var(--border-active);
+}
+
+.filter-select {
+  padding: 0.65rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-main);
+  font-size: 0.9rem;
+  cursor: pointer;
+  outline: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.filter-select:focus {
+  border-color: var(--border-active);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-main);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all var(--transition-smooth);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--accent-primary);
+  color: var(--text-inverse);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  background: var(--accent-primary-hover);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.btn-secondary {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-secondary);
+  border-color: #cbd5e1;
+}
+
+.btn-icon {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.btn-icon:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border-color: #cbd5e1;
+}
+
+.btn-danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
