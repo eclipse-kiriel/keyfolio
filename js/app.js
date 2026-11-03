@@ -303,10 +303,11 @@ class App {
 
     if (this.btnGdriveLogin) {
       this.btnGdriveLogin.addEventListener('click', async () => {
-        const clientId = this.gdriveClientIdInput.value.trim();
+        const inputVal = this.gdriveClientIdInput ? this.gdriveClientIdInput.value.trim() : '';
+        const clientId = inputVal || googleDriveService.getClientId();
         if (!clientId) {
           this.showToast('Google OAuth Client ID를 입력해주세요.', 'error');
-          this.gdriveClientIdInput.focus();
+          if (this.gdriveClientIdInput) this.gdriveClientIdInput.focus();
           return;
         }
         googleDriveService.setClientId(clientId);

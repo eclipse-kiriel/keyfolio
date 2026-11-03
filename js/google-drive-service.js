@@ -9,12 +9,14 @@
  * - Remote file modifiedTime inspection for startup conflict resolution
  */
 
+import { DEFAULT_GOOGLE_CLIENT_ID } from './constants.js';
+
 export class GoogleDriveService {
   constructor() {
     this.tokenClient = null;
     this.accessToken = localStorage.getItem('gdrive_access_token') || null;
     this.tokenExpiresAt = parseInt(localStorage.getItem('gdrive_token_expires_at') || '0', 10);
-    this.clientId = localStorage.getItem('gdrive_client_id') || '';
+    this.clientId = localStorage.getItem('gdrive_client_id') || DEFAULT_GOOGLE_CLIENT_ID || '';
     this.userProfile = JSON.parse(localStorage.getItem('gdrive_user_profile') || 'null');
     
     // File metadata cache
@@ -42,7 +44,7 @@ export class GoogleDriveService {
   }
 
   getClientId() {
-    return this.clientId;
+    return this.clientId || DEFAULT_GOOGLE_CLIENT_ID;
   }
 
   setClientId(clientId) {

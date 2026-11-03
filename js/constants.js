@@ -10,6 +10,9 @@ export const STORAGE_KEYS = {
   FIREBASE_CONFIG: 'kb_firebase_config_v1'
 };
 
+// Google Cloud OAuth 2.0 Client ID for Keyfolio (Public Identifier)
+export const DEFAULT_GOOGLE_CLIENT_ID = '768836393887-m4tmfcg0t8f7q9o0gq0o2rgs50b8ms7j.apps.googleusercontent.com';
+
 // 구조화된 빌드 필드 섹션 정의
 export const BUILD_SECTIONS = [
   {

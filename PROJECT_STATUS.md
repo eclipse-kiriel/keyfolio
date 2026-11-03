@@ -149,7 +149,11 @@ e:/Antigravity_work/
     * **모달 폼 그리드 최적화:** 신규 추가된 `.form-grid-3`(상판/하판/무게추) 및 `.form-grid-2`가 모바일에서 1열로 깔끔하게 떨어지도록 `grid-template-columns: 1fr` 강제 적용.
     * **가로 스크롤 방지:** `html, body { overflow-x: hidden; max-width: 100vw; }` 적용하여 모바일 화면 좌우 덜컹거림 완벽 차단.
     * **모달 & 카드 패딩 최적화:** 좁은 화면에서도 카드가 꽉 차고 모달 버튼이 하단에 균형 있게 배치되도록 개선.
-    * CSS 버전 쿼리 파라미터(`?v=7`) 및 서비스 워커 캐시(`keyfolio-v1.0.5`) 갱신.
+20. **구글 드라이브 OAuth Client ID 코드 영구 내장 및 1클릭 로그인 완성:**
+    * 공식 Client ID(`768836393887-m4tmfcg0t8f7q9o0gq0o2rgs50b8ms7j.apps.googleusercontent.com`)를 소스 코드(`constants.js`, `google-drive-service.js`, `app.js`)에 영구 기본값(`DEFAULT_GOOGLE_CLIENT_ID`)으로 내장.
+    * 기기(PC/모바일)나 브라우저, 신규 사용자 여부와 관계없이 더 이상 번거로운 "Client ID 입력창"이 뜨지 않고 **원클릭 `[ Google 계정으로 드라이브 연결 ]`** 지원.
+    * 수동 ID 지정이 필요한 고급 사용자를 위해 `<details>` 아코디언 메뉴로 선택적 커스텀 ID 지원.
+    * 서비스 워커 캐시(`keyfolio-v1.0.6`) 및 쿼리 파라미터(`?v=9`) 갱신.
 
 ---
 
