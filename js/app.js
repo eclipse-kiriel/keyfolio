@@ -3,15 +3,17 @@
  * Updated with Grouped Build Sections, Radio Lube Select, Image Compression & Previews
  */
 
-import { store } from './store.js?v=10';
-import { googleDriveService } from './google-drive-service.js?v=10';
+import { store } from './store.js';
+import { googleDriveService } from './google-drive-service.js';
+import { keycapSearchService } from './keycap-search-service.js';
 import {
   BUILD_SECTIONS,
   BUILD_STATUS_OPTIONS,
   KEYCAP_STATUS_OPTIONS,
   KEYCAP_PROFILES,
-  KEYCAP_MATERIALS
-} from './constants.js?v=10';
+  KEYCAP_MATERIALS,
+  normalizeBrandName
+} from './constants.js';
 
 const DEFAULT_CLIENT_ID = '768836393887-m4tmfcg0t8f7q9o0gq0o2rgs50b8ms7j.apps.googleusercontent.com';
 
@@ -23,6 +25,9 @@ class App {
     this.activeKeyboardId = null;
     this.activeKeycapId = null;
     this.uploadedImages = [null, null]; // Max 2 base64 images
+    this.keycapUploadedImage = ''; // Single base64 image for keycap
+    this.currentKeycapCandidates = [];
+    this.selectedKeycapCandidateUrl = '';
 
     this.initElements();
     this.attachEventListeners();
@@ -90,6 +95,26 @@ class App {
     this.btnAddKeycapDynamicField = document.getElementById('btn-add-keycap-dynamic-field');
     this.kcStatusSelect = document.getElementById('kc-status-select');
     this.kcMountedKeyboardSelect = document.getElementById('kc-mounted-keyboard-select');
+
+    // Keycap Image Search & Slot elements
+    this.btnKcAutoSearch = document.getElementById('btn-kc-auto-search');
+    this.kcSearchConfirmBox = document.getElementById('kc-search-confirm-box');
+    this.kcMatchedSetsWrapper = document.getElementById('kc-matched-sets-wrapper');
+    this.kcMatchedSetsChips = document.getElementById('kc-matched-sets-chips');
+    this.kcSearchResultName = document.getElementById('kc-search-result-name');
+    this.kcSearchStatusText = document.getElementById('kc-search-status-text');
+    this.kcSearchPreviewImg = document.getElementById('kc-search-preview-img');
+    this.kcSearchPreviewTag = document.getElementById('kc-search-preview-tag');
+    this.btnKcApplyPhoto = document.getElementById('btn-kc-apply-photo');
+    this.btnKcShowCandidates = document.getElementById('btn-kc-show-candidates');
+    this.btnKcCancelSearch = document.getElementById('btn-kc-cancel-search');
+    this.kcCandidateContainer = document.getElementById('kc-candidate-container');
+    this.kcCandidateGrid = document.getElementById('kc-candidate-grid');
+
+    this.inputKcImage = document.getElementById('input-kc-image');
+    this.placeholderKcImg = document.getElementById('placeholder-kc-img');
+    this.previewKcImg = document.getElementById('preview-kc-img');
+    this.btnRemoveKcImg = document.getElementById('btn-remove-kc-img');
 
     this.specModal = document.getElementById('spec-modal');
     this.specModalBody = document.getElementById('spec-modal-body');
@@ -188,6 +213,61 @@ class App {
       e.stopPropagation();
       this.removeImage(1);
     });
+
+    // Keycap Image Search & Slot Events
+    if (this.btnKcAutoSearch) {
+      this.btnKcAutoSearch.addEventListener('click', () => this.handleKeycapAutoSearch());
+    }
+    if (this.btnKcApplyPhoto) {
+      this.btnKcApplyPhoto.addEventListener('click', () => this.applySelectedKeycapPhoto());
+    }
+    if (this.btnKcShowCandidates) {
+      this.btnKcShowCandidates.addEventListener('click', () => this.toggleKeycapCandidates());
+    }
+    if (this.btnKcCancelSearch) {
+      this.btnKcCancelSearch.addEventListener('click', () => this.closeKeycapSearchBox());
+    }
+    if (this.inputKcImage) {
+      this.inputKcImage.addEventListener('change', (e) => this.handleKeycapManualUpload(e));
+    }
+    if (this.btnRemoveKcImg) {
+      this.btnRemoveKcImg.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.removeKeycapImage();
+      });
+    }
+
+    // Brand Name Auto-Normalization Listeners (GMK, Keykobo/KKB, PBTfans, MW, KBS, TUT, Osume)
+    const kcNameInput = document.getElementById('kc-name-input');
+    const kcMfgInput = document.getElementById('kc-manufacturer-input');
+
+    if (kcNameInput) {
+      kcNameInput.addEventListener('blur', () => {
+        const normalized = normalizeBrandName(kcNameInput.value);
+        if (normalized !== kcNameInput.value) {
+          kcNameInput.value = normalized;
+        }
+        // Auto-populate manufacturer if empty and brand is detected in name
+        if (kcMfgInput && !kcMfgInput.value.trim()) {
+          const firstWord = normalized.trim().split(/\s+/)[0];
+          if (['GMK', 'Keykobo', 'PBTfans', 'ePBT', 'MW', 'KBS', 'TUT', 'Osume', 'DMK', 'CRP'].includes(firstWord)) {
+            kcMfgInput.value = firstWord;
+          }
+        }
+      });
+    }
+
+    if (kcMfgInput) {
+      kcMfgInput.addEventListener('blur', () => {
+        kcMfgInput.value = normalizeBrandName(kcMfgInput.value);
+      });
+    }
+
+    if (this.fieldCustomKeycap) {
+      this.fieldCustomKeycap.addEventListener('blur', () => {
+        this.fieldCustomKeycap.value = normalizeBrandName(this.fieldCustomKeycap.value);
+      });
+    }
 
     // Foam Radio Toggle Handler
     document.querySelectorAll('input[name="foamType"]').forEach(radio => {
@@ -372,6 +452,24 @@ class App {
     // Spec Sheet Copy
     this.btnCopySpec.addEventListener('click', () => this.copySpecToClipboard());
 
+    // Spec Sheet Edit / Delete (moved from the main card into the spec sheet)
+    document.getElementById('btn-spec-edit').addEventListener('click', () => {
+      const kb = this.activeSpecKeyboard;
+      if (!kb) return;
+      this.closeModal(this.specModal);
+      this.openKeyboardModal(kb);
+    });
+    document.getElementById('btn-spec-delete').addEventListener('click', () => {
+      const kb = this.activeSpecKeyboard;
+      if (!kb) return;
+      if (confirm(`'${kb.name}' 빌드 정보를 삭제하시겠습니까?`)) {
+        store.deleteKeyboard(kb.id);
+        this.closeModal(this.specModal);
+        this.activeSpecKeyboard = null;
+        this.showToast('키보드 빌드가 삭제되었습니다.', 'info');
+      }
+    });
+
     // Generic Modal Close Buttons
     document.querySelectorAll('[data-close-modal]').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -471,19 +569,6 @@ class App {
     }
   }
 
-  initServices() {
-    store.subscribe(() => {
-      this.render();
-      this.updateBadges();
-    });
-
-    firebaseService.subscribeStatus((status) => {
-      this.updateCloudStatusUI(status);
-    });
-
-    this.updateBadges();
-  }
-
   switchTab(tab) {
     this.currentTab = tab;
     this.searchQuery = '';
@@ -524,42 +609,6 @@ class App {
     const kcs = store.getKeycaps();
     this.keyboardsCountBadge.textContent = kbs.length;
     this.keycapsCountBadge.textContent = kcs.length;
-  }
-
-  updateCloudStatusUI(status) {
-    if (status.isSyncing) {
-      this.cloudStatusDot.className = 'pulse-dot syncing';
-      this.cloudStatusText.textContent = '동기화 중...';
-    } else if (status.isAuthenticated) {
-      this.cloudStatusDot.className = 'pulse-dot online';
-      this.cloudStatusText.textContent = status.user.displayName || '클라우드 연결됨';
-    } else if (status.isConfigured) {
-      this.cloudStatusDot.className = 'pulse-dot offline';
-      this.cloudStatusText.textContent = '로그인 필요';
-    } else {
-      this.cloudStatusDot.className = 'pulse-dot';
-      this.cloudStatusText.textContent = '로컬 모드';
-    }
-
-    if (status.isAuthenticated) {
-      this.cloudUserSection.style.display = 'block';
-      document.getElementById('cloud-user-name').textContent = status.user.displayName || 'Google User';
-      document.getElementById('cloud-user-email').textContent = status.user.email || '';
-      if (status.user.photoURL) {
-        document.getElementById('cloud-user-avatar').src = status.user.photoURL;
-      }
-      this.btnGoogleLogin.style.display = 'none';
-      this.btnGoogleLogout.style.display = 'inline-flex';
-    } else {
-      this.cloudUserSection.style.display = 'none';
-      this.btnGoogleLogin.style.display = status.isConfigured ? 'inline-flex' : 'none';
-      this.btnGoogleLogout.style.display = 'none';
-    }
-
-    const savedConfig = firebaseService.getConfig();
-    if (savedConfig) {
-      document.getElementById('firebase-config-json').value = JSON.stringify(savedConfig, null, 2);
-    }
   }
 
   render() {
@@ -625,12 +674,9 @@ class App {
       switchVal += ` [추가: ${kb.fields.extraSwitches}]`;
     }
 
-    const pcbVal = kb.fields?.pcb ? `${kb.fields.pcb} (${kb.fields?.pcbType || '핫스왑'})` : '-';
-    let stabVal = kb.fields?.stabilizer || '-';
-    if (kb.fields?.stabilizerSpbar) {
-      stabVal += ` (슷바: ${kb.fields.stabilizerSpbar})`;
-    }
     const keycapVal = kb.fields?.mountedKeycap || '-';
+    const mountVal = kb.fields?.mountType || '-';
+    const plateVal = kb.fields?.plate || '-';
 
     // Photos preview
     let photosHtml = '';
@@ -648,83 +694,39 @@ class App {
       `;
     }
 
-    // Custom fields chips
-    let customChipsHtml = '';
-    if (kb.customFields && kb.customFields.length > 0) {
-      customChipsHtml = `
-        <div class="custom-fields-chips">
-          ${kb.customFields.map(cf => `
-            <span class="custom-chip">
-              <span class="custom-chip-label">${this.escape(cf.label)}:</span>
-              <span class="custom-chip-val">${this.escape(cf.value)}</span>
-            </span>
-          `).join('')}
-        </div>
-      `;
-    }
-
-    // Sound test link badge - 타건음 링크가 실제로 저장되어 있을 때만 표시
-    let soundBadgeHtml = '';
-    const soundLinkVal = (kb.fields?.soundLink || '').trim();
-    if (soundLinkVal && soundLinkVal !== 'https://youtube.com/shorts/sample') {
-      soundBadgeHtml = `
-        <a href="${this.escape(soundLinkVal)}" target="_blank" rel="noopener" class="sound-link-badge">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
-          타건음 듣기
-        </a>
-      `;
-    }
-
     card.innerHTML = `
       ${photosHtml}
 
       <div class="kb-card-header">
         <div class="kb-card-title-group">
           <h3 class="kb-card-title">${this.escape(kb.name || housing)}</h3>
-          <span class="kb-housing-subtitle">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M6 16h12"></path></svg>
-            ${layoutSummary ? `<strong style="color: var(--accent-secondary); margin-right: 0.35rem;">[${this.escape(layoutSummary)}]</strong>` : ''}${this.escape(colorsSummary || '색상 미지정')}
-          </span>
+          <div class="kb-housing-subtitle">
+            ${layoutSummary ? `<span class="kb-layout-tag">[${this.escape(layoutSummary)}]</span>` : ''}
+            <span class="kb-colors-text">${this.escape(colorsSummary || '색상 미지정')}</span>
+          </div>
         </div>
         <span class="status-badge ${statusObj.value}">${statusObj.label}</span>
       </div>
 
-      <div class="kb-specs-list">
-        <div class="spec-item">
+      <div class="kb-specs-list compact">
+        <div class="spec-item" title="${this.escape(switchVal)}">
           <span class="spec-label">스위치</span>
           <span class="spec-val">${this.escape(switchVal)}</span>
         </div>
-        <div class="spec-item">
-          <span class="spec-label">PCB / 스테빌</span>
-          <span class="spec-val">${this.escape(pcbVal)} / ${this.escape(stabVal)}</span>
-        </div>
-        <div class="spec-item">
-          <span class="spec-label">마운트/보강</span>
-          <span class="spec-val">${this.escape(kb.fields?.mountType || '-')} / ${this.escape(kb.fields?.plate || '-')}</span>
-        </div>
-        <div class="spec-item">
-          <span class="spec-label">장착 키캡</span>
+        <div class="spec-item" title="${this.escape(keycapVal)}">
+          <span class="spec-label">키캡</span>
           <span class="spec-val" style="color: var(--accent-secondary);">${this.escape(keycapVal)}</span>
         </div>
-      </div>
-
-      ${soundBadgeHtml ? `<div style="display: flex; gap: 0.5rem;">${soundBadgeHtml}</div>` : ''}
-
-      <div class="kb-card-footer">
-        <button class="btn btn-secondary btn-sm" data-action="view-spec" style="font-size: 0.8rem; padding: 0.4rem 0.75rem;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-          빌드 명세표
-        </button>
-
-        <div class="card-actions-group">
-          <button class="btn btn-icon btn-sm" data-action="edit" title="수정">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-          </button>
-          <button class="btn btn-icon btn-sm btn-danger" data-action="delete" title="삭제">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-          </button>
+        <div class="spec-item" title="${this.escape(mountVal)}">
+          <span class="spec-label">마운트</span>
+          <span class="spec-val">${this.escape(mountVal)}</span>
+        </div>
+        <div class="spec-item" title="${this.escape(plateVal)}">
+          <span class="spec-label">보강</span>
+          <span class="spec-val">${this.escape(plateVal)}</span>
         </div>
       </div>
+
     `;
 
     // Photo click event -> open lightbox
@@ -738,15 +740,17 @@ class App {
       }
     });
 
-    card.querySelector('[data-action="view-spec"]').addEventListener('click', () => this.openSpecModal(kb));
-    card.querySelector('[data-action="edit"]').addEventListener('click', () => this.openKeyboardModal(kb));
-    card.querySelector('[data-action="delete"]').addEventListener('click', () => {
-      if (confirm(`'${kb.name}' 빌드 정보를 삭제하시겠습니까?`)) {
-        store.deleteKeyboard(kb.id);
-        this.showToast('키보드 빌드가 삭제되었습니다.', 'info');
+    // Whole card opens the build spec sheet (edit/delete live inside it)
+    card.classList.add('clickable');
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.addEventListener('click', () => this.openSpecModal(kb));
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        this.openSpecModal(kb);
       }
     });
-
     return card;
   }
 
@@ -789,78 +793,85 @@ class App {
 
   createKeycapCard(kc) {
     const card = document.createElement('div');
-    card.className = 'keycap-card';
+    card.className = 'keycap-card compact clickable';
 
     const statusObj = KEYCAP_STATUS_OPTIONS.find(s => s.value === kc.status) || KEYCAP_STATUS_OPTIONS[0];
 
-    let customChipsHtml = '';
-    if (kc.customFields && kc.customFields.length > 0) {
-      customChipsHtml = `
-        <div class="custom-fields-chips">
-          ${kc.customFields.map(cf => `
-            <span class="custom-chip">
-              <span class="custom-chip-label">${this.escape(cf.label)}:</span>
-              <span class="custom-chip-val">${this.escape(cf.value)}</span>
-            </span>
-          `).join('')}
+    // Thumbnail element (compact 64x64 frame)
+    let thumbHtml = '';
+    if (kc.image) {
+      thumbHtml = `
+        <div class="kc-card-thumb">
+          <img src="${this.escape(kc.image)}" alt="${this.escape(kc.name)}" loading="lazy">
+        </div>
+      `;
+    } else {
+      thumbHtml = `
+        <div class="kc-card-thumb placeholder">
+          <span class="kc-thumb-icon">⌨️</span>
         </div>
       `;
     }
 
-    let mountedInfo = '';
-    if (kc.status === 'mounted' && kc.mountedOnKeyboardName) {
-      mountedInfo = `
-        <div class="mounted-indicator">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
-          장착 중: <strong>${this.escape(kc.mountedOnKeyboardName)}</strong>
-        </div>
+    // Usage status pill (Focus purely on mounted keyboard vs stored)
+    let usagePillHtml = '';
+    if (kc.status === 'mounted') {
+      const kbName = kc.mountedOnKeyboardName ? `장착 중: ${kc.mountedOnKeyboardName}` : '장착 중';
+      usagePillHtml = `
+        <span class="kc-usage-pill mounted">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <strong>${this.escape(kbName)}</strong>
+        </span>
+      `;
+    } else if (kc.status === 'stored') {
+      usagePillHtml = `
+        <span class="kc-usage-pill stored">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+          보관함 (미사용)
+        </span>
+      `;
+    } else {
+      usagePillHtml = `
+        <span class="kc-usage-pill ${statusObj.value}">
+          ${statusObj.label}
+        </span>
       `;
     }
 
     card.innerHTML = `
-      <div class="kb-card-header">
-        <div style="display: flex; align-items: center; gap: 0.75rem;">
-          <div class="keycap-icon-box">⌨️</div>
-          <div class="kb-card-title-group">
-            <h3 class="kb-card-title">${this.escape(kc.name)}</h3>
-            <span class="kb-housing-subtitle">${this.escape(kc.manufacturer || '제조사 미지정')}</span>
+      ${thumbHtml}
+      <div class="kc-card-content">
+        <div class="kc-card-top-row">
+          <h3 class="kc-card-name" title="${this.escape(kc.name)}">${this.escape(kc.name)}</h3>
+          <div class="kc-card-actions">
+            <button class="btn btn-icon btn-xs" data-action="edit" title="수정">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            </button>
+            <button class="btn btn-icon btn-xs btn-danger" data-action="delete" title="삭제">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            </button>
           </div>
         </div>
-        <span class="status-badge ${statusObj.value}">${statusObj.label}</span>
-      </div>
 
-      <div class="kb-specs-list">
-        <div class="spec-item">
-          <span class="spec-label">프로파일</span>
-          <span class="spec-val">${this.escape(kc.profile || '-')}</span>
-        </div>
-        <div class="spec-item">
-          <span class="spec-label">재질</span>
-          <span class="spec-val">${this.escape(kc.material || '-')}</span>
-        </div>
-      </div>
-
-      ${mountedInfo}
-      ${customChipsHtml}
-
-      <div class="kb-card-footer">
-        <span style="font-size: 0.8rem; color: var(--text-muted);">
-          ${kc.notes ? this.escape(kc.notes) : ''}
-        </span>
-
-        <div class="card-actions-group">
-          <button class="btn btn-icon btn-sm" data-action="edit" title="수정">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-          </button>
-          <button class="btn btn-icon btn-sm btn-danger" data-action="delete" title="삭제">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-          </button>
+        <div class="kc-card-bottom-row">
+          ${usagePillHtml}
         </div>
       </div>
     `;
 
-    card.querySelector('[data-action="edit"]').addEventListener('click', () => this.openKeycapModal(kc));
-    card.querySelector('[data-action="delete"]').addEventListener('click', () => {
+    // Clicking anywhere on card opens edit modal
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('[data-action]')) return;
+      this.openKeycapModal(kc);
+    });
+
+    card.querySelector('[data-action="edit"]').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.openKeycapModal(kc);
+    });
+
+    card.querySelector('[data-action="delete"]').addEventListener('click', (e) => {
+      e.stopPropagation();
       if (confirm(`'${kc.name}' 키캡 정보를 삭제하시겠습니까?`)) {
         store.deleteKeycap(kc.id);
         this.showToast('키캡이 삭제되었습니다.', 'info');
@@ -1087,13 +1098,13 @@ class App {
       ? (foamItems.length > 0 ? `폼 (${foamItems.join(', ')})` : '폼')
       : '노폼';
 
-    // Keycap value resolution
+    // Keycap value resolution with Brand Normalization
     let resolvedKeycapName = '';
     const selectedDropdownVal = this.keycapSelectDropdown.value;
     if (selectedDropdownVal === '__custom__') {
-      resolvedKeycapName = this.fieldCustomKeycap.value.trim();
+      resolvedKeycapName = normalizeBrandName(this.fieldCustomKeycap.value.trim());
     } else {
-      resolvedKeycapName = selectedDropdownVal.trim();
+      resolvedKeycapName = normalizeBrandName(selectedDropdownVal.trim());
     }
 
     // Auto-create Keycap in inventory if it does not exist
@@ -1101,9 +1112,11 @@ class App {
     if (resolvedKeycapName) {
       const existingKeycap = store.getKeycapByName(resolvedKeycapName);
       if (!existingKeycap) {
+        const firstWord = resolvedKeycapName.split(/\s+/)[0];
+        const autoMfg = ['GMK', 'Keykobo', 'PBTfans', 'ePBT', 'MW', 'KBS', 'TUT', 'Osume', 'DMK', 'CRP'].includes(firstWord) ? firstWord : '';
         store.saveKeycap({
           name: resolvedKeycapName,
-          manufacturer: '',
+          manufacturer: autoMfg,
           profile: 'Cherry (체리)',
           material: '기타',
           status: 'mounted',
@@ -1177,7 +1190,7 @@ class App {
     this.showToast(message, 'success');
   }
 
-  // ==================== KEYCAP MODAL ====================
+  // ==================== KEYCAP MODAL & IMAGE SEARCH ====================
   openKeycapModal(kc = null) {
     this.activeKeycapId = kc ? kc.id : null;
     document.getElementById('keycap-modal-title').textContent = kc ? '키캡 정보 수정' : '새 키캡 등록';
@@ -1188,6 +1201,11 @@ class App {
     document.getElementById('kc-material-select').value = kc ? (kc.material || 'ABS 이중사출') : 'ABS 이중사출';
     document.getElementById('kc-status-select').value = kc ? kc.status : 'stored';
     document.getElementById('kc-notes-input').value = kc ? (kc.notes || '') : '';
+
+    // Initialize keycap image state
+    this.keycapUploadedImage = kc ? (kc.image || '') : '';
+    this.updateKeycapImageSlot();
+    this.closeKeycapSearchBox();
 
     // Populate Keyboards Dropdown for Keycap
     this.kcMountedKeyboardSelect.innerHTML = '<option value="">선택 안 함 (미장착)</option>';
@@ -1211,16 +1229,272 @@ class App {
     this.openModal(this.keycapModal, '#kc-name-input');
   }
 
+  // Keycap Image Slot View Updater
+  updateKeycapImageSlot() {
+    if (!this.previewKcImg || !this.placeholderKcImg || !this.btnRemoveKcImg) return;
+
+    if (this.keycapUploadedImage) {
+      this.previewKcImg.src = this.keycapUploadedImage;
+      this.previewKcImg.style.display = 'block';
+      this.placeholderKcImg.style.display = 'none';
+      this.btnRemoveKcImg.style.display = 'flex';
+    } else {
+      this.previewKcImg.src = '';
+      this.previewKcImg.style.display = 'none';
+      this.placeholderKcImg.style.display = 'flex';
+      this.btnRemoveKcImg.style.display = 'none';
+      if (this.inputKcImage) this.inputKcImage.value = '';
+    }
+  }
+
+  removeKeycapImage() {
+    this.keycapUploadedImage = '';
+    this.updateKeycapImageSlot();
+    this.showToast('키캡 사진이 제거되었습니다.', 'info');
+  }
+
+  async handleKeycapManualUpload(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      this.showToast('이미지 파일만 등록할 수 있습니다.', 'error');
+      return;
+    }
+
+    try {
+      this.showToast('사진을 최적화(WebP) 변환 중...', 'info');
+      const resizedBase64 = await this.createResizedImage(file, 600, 0.82);
+      this.keycapUploadedImage = resizedBase64;
+      this.updateKeycapImageSlot();
+      this.showToast('키캡 사진이 성공적으로 등록되었습니다!', 'success');
+    } catch (err) {
+      console.error('Keycap manual image upload error:', err);
+      this.showToast('사진 처리 중 오류가 발생했습니다.', 'error');
+    }
+  }
+
+  // Automated Search Workflow
+  async handleKeycapAutoSearch() {
+    const nameInput = document.getElementById('kc-name-input');
+    let query = nameInput ? nameInput.value.trim() : '';
+
+    if (!query) {
+      this.showToast('키캡 명칭을 먼저 입력해주세요.', 'warning');
+      if (nameInput) nameInput.focus();
+      return;
+    }
+
+    // Auto-normalize brand (e.g. "gmk mono" -> "GMK mono", "kkb ..." -> "Keykobo ...")
+    query = normalizeBrandName(query);
+    if (nameInput) nameInput.value = query;
+
+    // Auto-populate manufacturer if empty and known brand detected
+    const mfgInput = document.getElementById('kc-manufacturer-input');
+    if (mfgInput && !mfgInput.value.trim()) {
+      const firstWord = query.trim().split(/\s+/)[0];
+      if (['GMK', 'Keykobo', 'PBTfans', 'ePBT', 'MW', 'KBS', 'TUT', 'Osume', 'DMK', 'CRP'].includes(firstWord)) {
+        mfgInput.value = firstWord;
+      }
+    }
+
+    const btnText = this.btnKcAutoSearch.querySelector('span');
+    const originalText = btnText ? btnText.textContent : '사진 검색';
+    if (btnText) btnText.textContent = '검색 중...';
+    this.btnKcAutoSearch.disabled = true;
+
+    // Show confirm box in loading state
+    this.kcSearchConfirmBox.style.display = 'block';
+    this.kcSearchResultName.textContent = query;
+    this.kcSearchStatusText.textContent = '웹/카탈로그에서 사진 찾는 중...';
+    this.kcSearchPreviewImg.src = '';
+    this.kcCandidateContainer.style.display = 'none';
+
+    try {
+      const result = await keycapSearchService.searchKeycap(query);
+
+      if (!result || !result.representative) {
+        this.kcSearchStatusText.textContent = '일치하는 사진을 찾지 못했습니다. 직접 사진을 등록해보세요.';
+        this.kcSearchPreviewTag.textContent = '검색 결과 없음';
+        if (this.kcMatchedSetsWrapper) this.kcMatchedSetsWrapper.style.display = 'none';
+        this.showToast(`"${query}" 사진을 찾지 못했습니다.`, 'warning');
+        return;
+      }
+
+      // Populate multiple matched sets (e.g. Dolch family or Mono)
+      this.matchedKeycapSets = result.matchedSets && result.matchedSets.length > 0 ? result.matchedSets : [result];
+      this.renderKeycapMatchedSetChips();
+      this.selectKeycapMatchedSet(this.matchedKeycapSets[0]);
+
+    } catch (err) {
+      console.error('Keycap auto-search error:', err);
+      this.kcSearchStatusText.textContent = '검색 중 오류가 발생했습니다.';
+      this.showToast('사진 검색 중 네트워크 오류가 발생했습니다.', 'error');
+    } finally {
+      if (btnText) btnText.textContent = originalText;
+      this.btnKcAutoSearch.disabled = false;
+    }
+  }
+
+  // Render clickable chips when multiple variations exist (e.g. Dolch family)
+  renderKeycapMatchedSetChips() {
+    if (!this.kcMatchedSetsWrapper || !this.kcMatchedSetsChips) return;
+
+    if (!this.matchedKeycapSets || this.matchedKeycapSets.length <= 1) {
+      this.kcMatchedSetsWrapper.style.display = 'none';
+      return;
+    }
+
+    this.kcMatchedSetsWrapper.style.display = 'block';
+    this.kcMatchedSetsChips.innerHTML = '';
+
+    this.matchedKeycapSets.forEach((set, idx) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'kc-set-chip' + (idx === 0 ? ' active' : '');
+      chip.textContent = set.name;
+
+      chip.addEventListener('click', () => {
+        this.kcMatchedSetsChips.querySelectorAll('.kc-set-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        this.selectKeycapMatchedSet(set);
+      });
+
+      this.kcMatchedSetsChips.appendChild(chip);
+    });
+  }
+
+  // Select a specific set from the matched sets
+  selectKeycapMatchedSet(set) {
+    if (!set) return;
+
+    this.activeKeycapSet = set;
+    this.currentKeycapCandidates = set.candidates || [];
+    this.selectedKeycapCandidateUrl = set.representative;
+
+    this.kcSearchResultName.textContent = set.name;
+    this.kcSearchStatusText.textContent = `대표 렌더 및 후보 ${this.currentKeycapCandidates.length}장`;
+    this.kcSearchPreviewImg.src = set.representative;
+    this.kcSearchPreviewTag.textContent = this.currentKeycapCandidates[0]?.title || '대표 렌더링';
+
+    // Auto-fill manufacturer/profile if empty
+    const mfgInput = document.getElementById('kc-manufacturer-input');
+    if (mfgInput && !mfgInput.value.trim() && set.manufacturer) {
+      mfgInput.value = set.manufacturer;
+    }
+    if (set.profile) {
+      const profileSelect = document.getElementById('kc-profile-select');
+      if (profileSelect) profileSelect.value = set.profile;
+    }
+    if (set.material) {
+      const materialSelect = document.getElementById('kc-material-select');
+      if (materialSelect) materialSelect.value = set.material;
+    }
+
+    this.renderKeycapCandidates();
+  }
+
+  renderKeycapCandidates() {
+    if (!this.kcCandidateGrid) return;
+    this.kcCandidateGrid.innerHTML = '';
+
+    this.currentKeycapCandidates.forEach((cand, idx) => {
+      const item = document.createElement('div');
+      item.className = 'kc-candidate-item';
+      if (cand.url === this.selectedKeycapCandidateUrl) {
+        item.classList.add('active');
+      }
+
+      item.innerHTML = `
+        <img src="${this.escape(cand.url)}" alt="${this.escape(cand.title)}" class="kc-candidate-thumb" loading="lazy">
+        <span class="kc-candidate-label" title="${this.escape(cand.title)}">${this.escape(cand.title)}</span>
+      `;
+
+      item.addEventListener('click', () => {
+        this.selectedKeycapCandidateUrl = cand.url;
+        this.kcSearchPreviewImg.src = cand.url;
+        this.kcSearchPreviewTag.textContent = cand.title;
+
+        this.kcCandidateGrid.querySelectorAll('.kc-candidate-item').forEach(el => el.classList.remove('active'));
+        item.classList.add('active');
+      });
+
+      this.kcCandidateGrid.appendChild(item);
+    });
+  }
+
+  toggleKeycapCandidates() {
+    if (!this.kcCandidateContainer) return;
+    const isHidden = (this.kcCandidateContainer.style.display === 'none' || !this.kcCandidateContainer.style.display);
+    this.kcCandidateContainer.style.display = isHidden ? 'block' : 'none';
+    if (isHidden) {
+      this.btnKcShowCandidates.classList.add('active');
+    } else {
+      this.btnKcShowCandidates.classList.remove('active');
+    }
+  }
+
+  async applySelectedKeycapPhoto() {
+    if (!this.selectedKeycapCandidateUrl) {
+      this.showToast('적용할 사진을 선택해주세요.', 'warning');
+      return;
+    }
+
+    const originalText = this.btnKcApplyPhoto.innerHTML;
+    this.btnKcApplyPhoto.disabled = true;
+    this.btnKcApplyPhoto.innerHTML = '적용 중...';
+
+    try {
+      this.showToast('사진을 썸네일용 WebP로 최적화 변환 중입니다...', 'info');
+      const webpBase64 = await keycapSearchService.convertUrlToWebP(this.selectedKeycapCandidateUrl, 600, 0.82);
+      this.keycapUploadedImage = webpBase64;
+      this.updateKeycapImageSlot();
+      this.closeKeycapSearchBox();
+      this.showToast('키캡 사진이 성공적으로 적용되었습니다!', 'success');
+    } catch (err) {
+      console.error('Failed to convert candidate image to WebP:', err);
+      // Fallback: assign directly as URL if canvas export fails
+      this.keycapUploadedImage = this.selectedKeycapCandidateUrl;
+      this.updateKeycapImageSlot();
+      this.closeKeycapSearchBox();
+      this.showToast('사진이 적용되었습니다 (웹 원본 링크).', 'success');
+    } finally {
+      this.btnKcApplyPhoto.disabled = false;
+      this.btnKcApplyPhoto.innerHTML = originalText;
+    }
+  }
+
+  closeKeycapSearchBox() {
+    if (this.kcSearchConfirmBox) {
+      this.kcSearchConfirmBox.style.display = 'none';
+    }
+    if (this.kcMatchedSetsWrapper) {
+      this.kcMatchedSetsWrapper.style.display = 'none';
+    }
+    if (this.kcCandidateContainer) {
+      this.kcCandidateContainer.style.display = 'none';
+    }
+    this.matchedKeycapSets = [];
+    this.currentKeycapCandidates = [];
+    this.selectedKeycapCandidateUrl = '';
+  }
+
   handleKeycapSubmit(e) {
     e.preventDefault();
 
-    const name = document.getElementById('kc-name-input').value.trim();
+    let name = normalizeBrandName(document.getElementById('kc-name-input').value.trim());
     if (!name) {
       this.showToast('키캡 명칭을 입력해주세요.', 'error');
       return;
     }
 
-    const manufacturer = document.getElementById('kc-manufacturer-input').value.trim();
+    let manufacturer = normalizeBrandName(document.getElementById('kc-manufacturer-input').value.trim());
+    if (!manufacturer) {
+      const firstWord = name.split(/\s+/)[0];
+      if (['GMK', 'Keykobo', 'PBTfans', 'ePBT', 'MW', 'KBS', 'TUT', 'Osume', 'DMK', 'CRP'].includes(firstWord)) {
+        manufacturer = firstWord;
+      }
+    }
     const profile = document.getElementById('kc-profile-select').value;
     const material = document.getElementById('kc-material-select').value;
     const status = document.getElementById('kc-status-select').value;
@@ -1241,6 +1515,7 @@ class App {
       status,
       mountedOnKeyboardId,
       mountedOnKeyboardName,
+      image: this.keycapUploadedImage || '',
       notes,
       customFields
     };
@@ -1440,10 +1715,13 @@ class App {
     // 3. Debounced Auto-Save on Store Changes
     store.subscribe((event) => {
       this.render();
+      this.updateBadges();
       if (['KEYBOARD_SAVED', 'KEYBOARD_DELETED', 'KEYCAP_SAVED', 'KEYCAP_DELETED'].includes(event)) {
         this.triggerDebouncedAutoSave();
       }
     });
+
+    this.updateBadges();
   }
 
   updateCloudStatus(state, text) {

@@ -97,6 +97,46 @@ export const KEYCAP_STATUS_OPTIONS = [
 export const KEYCAP_PROFILES = ['Cherry (체리)', 'OEM', 'SA', 'MT3', 'KAT', 'KAM', 'DSA', 'XDA', 'MOA', '기타'];
 export const KEYCAP_MATERIALS = ['ABS 이중사출', 'PBT 이중사출', 'PBT 염료승화', 'PBT 염료승화+이중사출', 'POM', '기타'];
 
+// 키캡 브랜드/제조사 자동 대소문자 & 명칭 표준화 규칙
+export const BRAND_NORMALIZATION_RULES = [
+  // Keykobo & KKB -> Keykobo
+  { pattern: /\b(kkb|keykobo)\b/gi, replacement: 'Keykobo' },
+  // GMK
+  { pattern: /\bgmk\b/gi, replacement: 'GMK' },
+  // PBTfans
+  { pattern: /\b(pbtfans|pbt\s*fans)\b/gi, replacement: 'PBTfans' },
+  // MW (Milkyway)
+  { pattern: /\bmw\b/gi, replacement: 'MW' },
+  // KBS
+  { pattern: /\bkbs\b/gi, replacement: 'KBS' },
+  // TUT
+  { pattern: /\btut\b/gi, replacement: 'TUT' },
+  // Osume
+  { pattern: /\bosume\b/gi, replacement: 'Osume' },
+  // ePBT / enjoypbt
+  { pattern: /\b(epbt|enjoypbt)\b/gi, replacement: 'ePBT' },
+  // DMK (Domikey)
+  { pattern: /\bdmk\b/gi, replacement: 'DMK' },
+  { pattern: /\bdomikey\b/gi, replacement: 'Domikey' },
+  // DCX
+  { pattern: /\bdcx\b/gi, replacement: 'DCX' },
+  // CRP
+  { pattern: /\bcrp\b/gi, replacement: 'CRP' },
+  // WS
+  { pattern: /\bws\b/gi, replacement: 'WS' },
+  // 주요 프로파일 키워드 (SA, DSA, MT3, KAT, KAM)
+  { pattern: /\b(sa|dsa|mt3|kat|kam)\b/gi, replacement: (m) => m.toUpperCase() }
+];
+
+export function normalizeBrandName(str) {
+  if (!str || typeof str !== 'string') return '';
+  let result = str;
+  BRAND_NORMALIZATION_RULES.forEach(rule => {
+    result = result.replace(rule.pattern, rule.replacement);
+  });
+  return result;
+}
+
 // 초기 샘플 데이터 (그룹화된 필드 반영)
 export const INITIAL_KEYBOARDS = [
   {
@@ -145,6 +185,7 @@ export const INITIAL_KEYCAPS = [
     status: 'mounted',
     mountedOnKeyboardId: 'kb_demo_1',
     mountedOnKeyboardName: 'tofu60 3.0',
+    image: 'https://i.imgur.com/y3v18MY.jpeg',
     customFields: [
       { id: 'cf_k1', label: '구매처', value: '스웨그키' },
       { id: 'cf_k2', label: '보유 킷', value: 'Base Kit + Novelties' }
@@ -160,9 +201,11 @@ export const INITIAL_KEYCAPS = [
     status: 'stored',
     mountedOnKeyboardId: '',
     mountedOnKeyboardName: '',
+    image: 'https://matrixzj.github.io/assets/images/gmk-keycaps/analog-dreams/rendering_pics/1.jpg',
     customFields: [
       { id: 'cf_k4', label: '보유 킷', value: 'Base Kit R2' }
     ],
     notes: '파스텔 톤 감성의 레트로 사이버펑크 셋'
   }
 ];
+
