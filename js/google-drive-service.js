@@ -9,7 +9,7 @@
  * - Remote file modifiedTime inspection for startup conflict resolution
  */
 
-import { DEFAULT_GOOGLE_CLIENT_ID } from './constants.js';
+export const DEFAULT_GOOGLE_CLIENT_ID = '768836393887-m4tmfcg0t8f7q9o0gq0o2rgs50b8ms7j.apps.googleusercontent.com';
 
 export class GoogleDriveService {
   constructor() {
@@ -99,7 +99,7 @@ export class GoogleDriveService {
   // Trigger Google Login popup
   async login() {
     if (!this.clientId) {
-      throw new Error('Google OAuth Client ID가 설정되지 않았습니다. 클라이언트 ID를 먼저 입력해주세요.');
+      this.clientId = DEFAULT_GOOGLE_CLIENT_ID;
     }
 
     if (!this.tokenClient) {

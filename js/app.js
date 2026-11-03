@@ -3,15 +3,17 @@
  * Updated with Grouped Build Sections, Radio Lube Select, Image Compression & Previews
  */
 
-import { store } from './store.js';
-import { googleDriveService } from './google-drive-service.js';
+import { store } from './store.js?v=10';
+import { googleDriveService } from './google-drive-service.js?v=10';
 import {
   BUILD_SECTIONS,
   BUILD_STATUS_OPTIONS,
   KEYCAP_STATUS_OPTIONS,
   KEYCAP_PROFILES,
   KEYCAP_MATERIALS
-} from './constants.js';
+} from './constants.js?v=10';
+
+const DEFAULT_CLIENT_ID = '768836393887-m4tmfcg0t8f7q9o0gq0o2rgs50b8ms7j.apps.googleusercontent.com';
 
 class App {
   constructor() {
@@ -304,12 +306,7 @@ class App {
     if (this.btnGdriveLogin) {
       this.btnGdriveLogin.addEventListener('click', async () => {
         const inputVal = this.gdriveClientIdInput ? this.gdriveClientIdInput.value.trim() : '';
-        const clientId = inputVal || googleDriveService.getClientId();
-        if (!clientId) {
-          this.showToast('Google OAuth Client ID를 입력해주세요.', 'error');
-          if (this.gdriveClientIdInput) this.gdriveClientIdInput.focus();
-          return;
-        }
+        const clientId = inputVal || googleDriveService.getClientId() || DEFAULT_CLIENT_ID;
         googleDriveService.setClientId(clientId);
 
         try {

@@ -14,9 +14,9 @@
   <link rel="apple-touch-icon" href="icons/icon.svg">
 
   <!-- Stylesheets -->
-  <link rel="stylesheet" href="css/main.css?v=9">
-  <link rel="stylesheet" href="css/components.css?v=9">
-  <link rel="stylesheet" href="css/responsive.css?v=9">
+  <link rel="stylesheet" href="css/main.css?v=10">
+  <link rel="stylesheet" href="css/components.css?v=10">
+  <link rel="stylesheet" href="css/responsive.css?v=10">
 
   <!-- Instant Theme Initializer -->
   <script>
@@ -729,7 +729,7 @@
           <details style="font-size: 0.78rem; color: var(--text-muted); cursor: pointer; margin-top: 0.25rem;">
             <summary style="user-select: none;">고급: 커스텀 Google Client ID 직접 지정</summary>
             <div style="margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
-              <input type="text" id="gdrive-client-id" class="form-input" placeholder="커스텀 Client ID 입력 (선택사항)" style="font-family: var(--font-mono); font-size: 0.78rem;">
+              <input type="text" id="gdrive-client-id" class="form-input" value="768836393887-m4tmfcg0t8f7q9o0gq0o2rgs50b8ms7j.apps.googleusercontent.com" placeholder="커스텀 Client ID 입력 (선택사항)" style="font-family: var(--font-mono); font-size: 0.78rem;">
               <div style="font-size: 0.74rem; color: var(--text-muted); line-height: 1.4;">
                 비워두면 Keyfolio 공식 기본 Client ID가 자동으로 사용됩니다.
               </div>
@@ -958,14 +958,27 @@
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./service-worker.js')
-          .then(reg => console.log('ServiceWorker registered:', reg.scope))
+          .then(reg => {
+            console.log('ServiceWorker registered:', reg.scope);
+            // Check for updates on every app launch
+            reg.update();
+          })
           .catch(err => console.log('ServiceWorker failed:', err));
+      });
+
+      // Reload smoothly when new version takes over
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
       });
     }
   </script>
 
   <!-- Application Logic Modules -->
-  <script type="module" src="js/app.js?v=9"></script>
+  <script type="module" src="js/app.js?v=10"></script>
 
 </body>
 
