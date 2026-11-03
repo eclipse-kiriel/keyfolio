@@ -14,9 +14,9 @@
   <link rel="apple-touch-icon" href="icons/icon.svg">
 
   <!-- Stylesheets -->
-  <link rel="stylesheet" href="css/main.css?v=19">
-  <link rel="stylesheet" href="css/components.css?v=19">
-  <link rel="stylesheet" href="css/responsive.css?v=19">
+  <link rel="stylesheet" href="css/main.css?v=20">
+  <link rel="stylesheet" href="css/components.css?v=20">
+  <link rel="stylesheet" href="css/responsive.css?v=20">
 
   <!-- Instant Theme Initializer -->
   <script>
@@ -99,7 +99,7 @@
           <select id="quick-theme-select" class="nav-theme-select" aria-label="테마 선택">
             <option value="warm-beige">A. 소프트 웜 베이지</option>
             <option value="lavender-mist">B. 모던 라벤더 미스트</option>
-            <option value="titanium">C. 미드나이트 다크 (초기 테마)</option>
+            <option value="titanium">C. 오리지널 미드나이트 (진남색 & 진보라)</option>
           </select>
         </div>
         <a href="theme-preview.html" class="btn btn-icon" title="색상 테마 전체 비교 & 상세 보기">
@@ -1014,6 +1014,17 @@
             JSON 파일에서 데이터 복원하기
           </button>
           <input type="file" id="import-file-input" accept=".json" style="display: none;">
+
+          <div style="border-top: 1px dashed var(--border-subtle); margin: 0.5rem 0;"></div>
+
+          <button type="button" id="btn-force-update" class="btn btn-secondary" style="width: 100%; color: var(--text-secondary); font-size: 0.84rem;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M23 4v6h-6"></path>
+              <path d="M1 20v-6h6"></path>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+            모바일 최신 버전 강제 갱신 (캐시 완전 삭제)
+          </button>
         </div>
       </div>
       <div class="modal-footer">
@@ -1046,7 +1057,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js')
+        navigator.serviceWorker.register('./service-worker.js?v=20', { updateViaCache: 'none' })
           .then(reg => {
             console.log('ServiceWorker registered:', reg.scope);
             // Check for updates on every app launch
@@ -1067,7 +1078,7 @@
   </script>
 
   <!-- Application Logic Modules -->
-  <script type="module" src="js/app.js?v=19"></script>
+  <script type="module" src="js/app.js?v=20"></script>
 
 </body>
 

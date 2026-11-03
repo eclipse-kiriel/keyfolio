@@ -449,6 +449,31 @@ class App {
     this.btnImportJson.addEventListener('click', () => this.importFileInput.click());
     this.importFileInput.addEventListener('change', (e) => this.handleFileImport(e));
 
+    const btnForceUpdate = document.getElementById('btn-force-update');
+    if (btnForceUpdate) {
+      btnForceUpdate.addEventListener('click', async () => {
+        if (confirm('모바일 브라우저의 저장된 임시 캐시를 모두 비우고 최신 버전으로 즉시 새로고침합니다.\n(키보드/키캡 데이터는 안전하게 보존됩니다)\n계속하시겠습니까?')) {
+          try {
+            if ('serviceWorker' in navigator) {
+              const registrations = await navigator.serviceWorker.getRegistrations();
+              for (const reg of registrations) {
+                await reg.unregister();
+              }
+            }
+            if ('caches' in window) {
+              const keys = await caches.keys();
+              for (const key of keys) {
+                await caches.delete(key);
+              }
+            }
+          } catch (e) {
+            console.warn('Cache clear error:', e);
+          }
+          window.location.href = window.location.origin + window.location.pathname + '?reload=' + Date.now();
+        }
+      });
+    }
+
     // Spec Sheet Copy
     this.btnCopySpec.addEventListener('click', () => this.copySpecToClipboard());
 
