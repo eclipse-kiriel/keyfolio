@@ -1,6 +1,6 @@
 # Keyfolio 프로젝트 개발 현황 및 인수인계 문서 (PROJECT_STATUS)
 
-**최종 업데이트:** 2026-11-04  
+**최종 업데이트:** 2026-11-13 (v1.0.20 / ?v=22)  
 **프로젝트명:** Keyfolio (커스텀 키보드 빌드 & 키캡 관리 PWA)  
 **작업 경로:** `e:\Antigravity_work`  
 **GitHub 저장소:** https://github.com/eclipse-kiriel/keyfolio (저장소명 소문자)  
@@ -135,6 +135,15 @@ e:/Antigravity_work/
    * 드롭다운에서 `선택 안 함`과 `[ + 직접 입력하기 ]` 명확히 분리.
    * 키캡 목록을 `localeCompare` 기반 알파벳 / 한글 가나다순으로 자동 정렬.
    * 직접 입력된 키캡이 인벤토리에 없으면 키보드 저장 시 자동으로 키캡 보관함에 `장착 중` 상태로 신규 등록.
+8. **4단계 초고속·고정밀 키캡 사진 검색 파이프라인 (`keycap-search-service.js` v22):**
+   * **버전 수식어(`R1`, `R2`, `R3`, `V2`) 분리 및 전체 핵심 토큰 일치 필수화:** `GMK Bento R2`나 `Retro Mixed Lights`처럼 2단어 이상 검색 시 단일 단어(`R2`, `Retro`)만 겹치는 엉뚱한 키캡이 검색되던 오탐 버그 완전 해결.
+   * **1단계 (0ms): 내장 인기 키캡 프리셋** 일치 시 외부 네트워크 대기 없이 즉시 반환.
+   * **2단계 (~0.4초): MatrixZJ 카탈로그 병렬 조회** (앱 시작 시 인덱스 백그라운드 프리로드 + `Promise.all` 병렬 상세 페이지 파싱).
+   * **3단계 (~0.6초): 글로벌 키보드 벤더 6곳(Swagkeys, Divinikey, Oblotzky, NovelKeys, Osume, CannonKeys) Shopify JSON 병렬 검색**을 통해 Keykobo, PBTfans, Osume, MW, ePBT 등 비-GMK 제조사 키캡의 공식 렌더링 및 키트 사진을 정확하고 빠르게 수집.
+   * **4단계 (~2초): Bing 실사 이미지(`OIP.`) 전용 필터링 + 자동 재시도 폴백** (12x12 파비콘 `ODF.` 및 사이드바 광고 `InlineBlock` 완벽 차단).
+9. **서비스 워커(`keyfolio-v1.0.20`) 및 앨범 `.webp` 리사이징 안정화:**
+   * 외부 API(`matrixzj`, `r.jina.ai` 등) 요청을 서비스 워커가 가로채지 않도록 동일 출처(Same-Origin)만 캐싱 처리하고, `cache: 'no-cache'`로 GitHub Pages 캐시 지연을 방지.
+   * 내 앨범에서 키캡 사진 직접 업로드 시 `createResizedImage()`를 통해 안정적으로 600px WebP(미지원 환경 시 JPEG)로 변환.
 
 ---
 

@@ -1358,6 +1358,7 @@ class App {
 
   // Clear all previous search UI & state to prevent stale results across keycaps
   resetKeycapSearchState() {
+    this.searchRequestId = (this.searchRequestId || 0) + 1;
     this.matchedKeycapSets = [];
     this.activeKeycapSet = null;
     this.currentKeycapCandidates = [];
@@ -1403,6 +1404,7 @@ class App {
 
     // Always clear previous keycap's search results before starting a new search
     this.resetKeycapSearchState();
+    const currentReqId = this.searchRequestId;
 
     // Update Google fallback link for current query
     const googleLink = document.getElementById('btn-kc-google-fallback');
@@ -1413,10 +1415,13 @@ class App {
     // Show confirm box in loading state
     this.kcSearchConfirmBox.style.display = 'block';
     this.kcSearchResultName.textContent = query;
-    this.kcSearchStatusText.textContent = '카탈로그 및 웹 이미지 검색 중...';
+    this.kcSearchStatusText.textContent = '카탈로그 및 글로벌 스토어 검색 중...';
 
     try {
       const result = await keycapSearchService.searchKeycap(query);
+
+      // Ignore stale response if user started another search or closed modal
+      if (currentReqId !== this.searchRequestId) return;
 
       if (!result || !result.representative) {
         this.kcSearchStatusText.textContent = '일치하는 사진을 찾지 못했습니다. 아래 구글 검색 또는 직접 업로드를 이용해보세요.';
@@ -1431,12 +1436,15 @@ class App {
       this.selectKeycapMatchedSet(this.matchedKeycapSets[0]);
 
     } catch (err) {
+      if (currentReqId !== this.searchRequestId) return;
       console.error('Keycap auto-search error:', err);
       this.kcSearchStatusText.textContent = '검색 중 오류가 발생했습니다.';
       this.showToast('사진 검색 중 네트워크 오류가 발생했습니다.', 'error');
     } finally {
-      if (btnText) btnText.textContent = originalText;
-      this.btnKcAutoSearch.disabled = false;
+      if (currentReqId === this.searchRequestId) {
+        if (btnText) btnText.textContent = originalText;
+        this.btnKcAutoSearch.disabled = false;
+      }
     }
   }
 
@@ -1499,8 +1507,8 @@ class App {
 
     this.renderKeycapCandidates();
 
-    // Auto-expand candidate grid for web fallback results so user can pick from multiple images
-    if (set.source === 'web' && this.kcCandidateContainer) {
+    // Auto-expand candidate grid for web/vendor results so user can pick from multiple images
+    if ((set.source === 'web' || set.source === 'vendor') && this.kcCandidateContainer) {
       this.kcCandidateContainer.style.display = 'block';
       if (this.btnKcShowCandidates) this.btnKcShowCandidates.classList.add('active');
     }

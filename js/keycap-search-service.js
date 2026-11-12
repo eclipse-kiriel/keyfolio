@@ -353,83 +353,165 @@ export const POPULAR_KEYCAPS_PRESETS = [
 class KeycapSearchService {
   constructor() {
     this.catalogIndex = null;
-    this.isLoadingIndex = false;
+    this.catalogPromise = null;
+    // Preload MatrixZJ catalog index in the background after initial page settle
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        this.ensureCatalogLoaded().catch(() => {});
+      }, 1000);
+    }
   }
 
   /**
-   * Word-Boundary / Exact Token Matching Scorer.
-   * Prevents false positives like matching "mono" to "monochrome",
-   * and respects explicit brand prefixes (e.g. "Keykobo ..." vs "GMK ...").
+   * Ensures search-data.json is loaded once and shared across concurrent calls.
+   */
+  async ensureCatalogLoaded() {
+    if (this.catalogIndex) return this.catalogIndex;
+    if (this.catalogPromise) return this.catalogPromise;
+
+    this.catalogPromise = (async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      try {
+        const res = await fetch('https://matrixzj.github.io/assets/js/search-data.json', {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          this.catalogIndex = await res.json();
+        }
+      } catch (e) {
+        clearTimeout(timeoutId);
+        console.warn('MatrixZJ catalog preload warning:', e);
+      } finally {
+        this.catalogPromise = null;
+      }
+      return this.catalogIndex;
+    })();
+
+    return this.catalogPromise;
+  }
+
+  /**
+   * Strict Token Matching Scorer.
+   * - Respects explicit brand prefixes (e.g. "Keykobo ..." vs "GMK ...").
+   * - Separates revision modifiers (r1, r2, r3, v2, cyl) from core name tokens
+   *   so "GMK Bento R2" never false-matches random "R2" keycaps.
+   * - Requires ALL core query tokens to match discrete target tokens (or Korean substrings).
    */
   calculateMatchScore(targetName, keywords = [], rawQuery) {
-    const normQuery = rawQuery.toLowerCase().trim();
+    const normQuery = (rawQuery || '').toLowerCase().trim();
     if (!normQuery) return 0;
 
-    const brandRx = /^(gmk|sa|epbt|dsa|kat|kam|pbtfans|keykobo|kkb|mw|kbs|tut|osume|dmk|domikey|crp|dcx|ws)\b/i;
+    const brandRx = /^(gmk|sa|epbt|dsa|kat|kam|pbtfans|keykobo|kkb|mw|kbs|tut|osume|dmk|domikey|crp|dcx|ws|sw|jtk|mt3|sp|nicepbt)\b/i;
     const qBrandMatch = normQuery.match(brandRx);
-    const tBrandMatch = targetName.toLowerCase().trim().match(brandRx);
+    const tBrandMatch = (targetName || '').toLowerCase().trim().match(brandRx);
+
+    const normalizeBrandToken = (b) => {
+      const lower = b.toLowerCase();
+      if (lower === 'kkb') return 'keykobo';
+      if (lower === 'dmk') return 'domikey';
+      return lower;
+    };
 
     // If user explicitly specified a brand (e.g. "Keykobo") and target has a different brand ("GMK"), reject
     if (qBrandMatch && tBrandMatch) {
-      const qB = qBrandMatch[1].toLowerCase() === 'kkb' ? 'keykobo' : qBrandMatch[1].toLowerCase();
-      const tB = tBrandMatch[1].toLowerCase() === 'kkb' ? 'keykobo' : tBrandMatch[1].toLowerCase();
+      const qB = normalizeBrandToken(qBrandMatch[1]);
+      const tB = normalizeBrandToken(tBrandMatch[1]);
       if (qB !== tB) return 0;
     }
 
-    // Strip brand prefixes: "gmk mono" -> "mono"
-    const stripBrandRx = /^(gmk|sa|epbt|dsa|kat|kam|pbtfans|keykobo|kkb|mw|kbs|tut|osume|dmk|domikey|crp|dcx|ws)\s+/i;
-    const qClean = normQuery.replace(stripBrandRx, '').trim();
-    const qTokens = qClean.split(/\s+/).filter(Boolean);
-    if (qTokens.length === 0) return 0;
+    const stripBrandRx = /^(gmk|sa|epbt|dsa|kat|kam|pbtfans|keykobo|kkb|mw|kbs|tut|osume|dmk|domikey|crp|dcx|ws|sw|jtk|mt3|sp|nicepbt)\s+/i;
+    const noiseWords = new Set(['keycaps', 'keycap', 'set', 'kit', 'base', 'cyl', 'mtnu', 'cherry', 'profile', 'doubleshot', 'pbt', 'abs', '키캡']);
+    const modifierWords = new Set(['r1', 'r2', 'r3', 'r4', 'r5', 'v1', 'v2', 'v3', 'round']);
 
-    const normTarget = targetName.toLowerCase().trim();
-    const tClean = normTarget.replace(stripBrandRx, '').replace(/[^a-z0-9가-힣\s]/g, ' ').trim();
-    const tTokens = tClean.split(/\s+/).filter(Boolean);
+    const tokenize = (str) => {
+      const withoutBrand = str.toLowerCase().trim().replace(stripBrandRx, '');
+      const cleaned = withoutBrand.replace(/[^a-z0-9가-힣\s]/g, ' ').trim();
+      const rawTokens = cleaned.split(/\s+/).filter(Boolean).filter(t => !noiseWords.has(t));
+      const core = rawTokens.filter(t => !modifierWords.has(t));
+      const mods = rawTokens.filter(t => modifierWords.has(t));
+      return {
+        all: rawTokens,
+        core: core.length > 0 ? core : rawTokens,
+        mods
+      };
+    };
 
-    // 1. Exact Match on stripped name: e.g. "mono" === "mono"
-    if (tTokens.join(' ') === qTokens.join(' ')) {
+    const qParsed = tokenize(normQuery);
+    if (qParsed.core.length === 0) return 0;
+
+    const normTarget = (targetName || '').toLowerCase().trim();
+    const tParsed = tokenize(normTarget);
+    if (tParsed.core.length === 0) return 0;
+
+    const qClean = qParsed.all.join(' ');
+    const qCoreStr = qParsed.core.join(' ');
+    const tClean = tParsed.all.join(' ');
+    const tCoreStr = tParsed.core.join(' ');
+
+    // 1. Exact full match (including revision modifiers like R2)
+    if (tClean === qClean) {
       return 1000;
     }
 
-    // 2. Exact match in alias keywords: e.g. 'mono' in ['mono', 'gmk mono']
-    if (keywords.some(kw => kw.toLowerCase().trim() === normQuery || kw.toLowerCase().trim() === qClean)) {
-      return 950;
+    // 2. Exact match in alias keywords (or matching core when query has R2 modifier)
+    const lowerKeywords = (keywords || []).map(kw => kw.toLowerCase().trim());
+    if (lowerKeywords.some(kw => kw === normQuery || kw === qClean)) {
+      return 960;
+    }
+    if (tCoreStr === qCoreStr) {
+      // e.g. Query "GMK Bento R2" against Preset "GMK Bento"
+      const modBonus = qParsed.mods.some(m => tParsed.mods.includes(m)) ? 50 : 0;
+      return 900 + modBonus;
+    }
+    if (lowerKeywords.some(kw => {
+      const kwParsed = tokenize(kw);
+      return kwParsed.core.length > 0 && kwParsed.core.join(' ') === qCoreStr;
+    })) {
+      return 890;
     }
 
-    let score = 0;
-
-    // 3. Exact Word Token Containment (All query tokens must exist as discrete tokens in target)
-    // "mono" is NOT in ["monochrome"], so score is 0.
-    const allTokensExist = qTokens.every(qt => tTokens.includes(qt));
-    if (allTokensExist) {
-      score += 500;
-      // Favor closer word counts (e.g. "Dolch" over "Dolch Reborn Accent Special")
-      score -= Math.abs(tTokens.length - qTokens.length) * 20;
-    }
-
-    // 4. Regex Word Boundary: \bmono\b
-    let boundaryMatches = 0;
-    qTokens.forEach(qt => {
-      const escaped = qt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const rx = new RegExp('\\b' + escaped + '\\b', 'i');
-      if (rx.test(normTarget)) {
-        boundaryMatches++;
-        score += 120;
+    // 3. Check if ALL core query tokens match target
+    const tokenMatchesTarget = (qt) => {
+      if (tParsed.core.includes(qt) || tParsed.all.includes(qt)) return true;
+      // Korean keyword support (since \b does not work on Hangul)
+      if (/[가-힣]/.test(qt)) {
+        if (normTarget.includes(qt)) return true;
+        if (lowerKeywords.some(kw => kw.includes(qt))) return true;
       }
-    });
+      // Also check if keyword aliases contain this exact token
+      return lowerKeywords.some(kw => kw.split(/\s+/).includes(qt));
+    };
 
-    // If query has multiple tokens and none matched as distinct boundary words, reject
-    if (boundaryMatches === 0 && !allTokensExist) {
+    const allCoreMatched = qParsed.core.every(tokenMatchesTarget);
+    if (!allCoreMatched) {
       return 0;
     }
 
-    return score;
+    let score = 550;
+    // Favor closer word count to avoid overly long unrelated bundles
+    score -= Math.abs(tParsed.core.length - qParsed.core.length) * 25;
+
+    // Bonus if target starts with the first core token
+    if (tParsed.core[0] === qParsed.core[0]) {
+      score += 60;
+    }
+
+    // Bonus if revision modifier (e.g. R2) also matches
+    if (qParsed.mods.length > 0 && qParsed.mods.some(m => tParsed.mods.includes(m))) {
+      score += 50;
+    }
+
+    return Math.max(score, 150);
   }
 
   /**
-   * Search keycap images by keyword.
-   * Returns multiple matched set candidates (e.g. Dolch Family or Mono)
-   * and falls back to live Web/Bing image search for non-GMK or unlisted sets.
+   * Search keycap images by keyword across 4 fast stages:
+   * Stage 1 (0ms): Built-in popular presets
+   * Stage 2 (~350ms): MatrixZJ catalog (parallel detail fetch for GMK/SA/DSA)
+   * Stage 3 (~650ms): Global keyboard vendor Shopify JSON search (Keykobo, PBTfans, Osume, MW, GMK, etc.)
+   * Stage 4 (~2s): Strict Bing Image OIP search fallback
    */
   async searchKeycap(query) {
     if (!query || !query.trim()) return null;
@@ -438,10 +520,10 @@ class KeycapSearchService {
 
     const matchedSets = [];
 
-    // 1. Score and rank preset database
+    // Stage 1: Score and rank preset database (0ms)
     for (const preset of POPULAR_KEYCAPS_PRESETS) {
       const score = this.calculateMatchScore(preset.name, preset.keywords, cleanQuery);
-      if (score > 100) {
+      if (score >= 450) {
         matchedSets.push({
           source: 'preset',
           score,
@@ -455,13 +537,28 @@ class KeycapSearchService {
       }
     }
 
-    // 2. Search online matrixzj catalog (GMK / SA / DSA) unless we already have a 1000pt preset match & enough items
-    const hasPerfectMatch = matchedSets.some(s => s.score >= 950);
-    if (!hasPerfectMatch || matchedSets.length < 3) {
+    // If we already have a strong preset match (score >= 880), return immediately for instant UX!
+    const hasStrongPreset = matchedSets.some(s => s.score >= 880);
+    if (hasStrongPreset) {
+      matchedSets.sort((a, b) => b.score - a.score);
+      return {
+        ...matchedSets[0],
+        matchedSets: matchedSets.slice(0, 6)
+      };
+    }
+
+    // Check if query explicitly specifies a non-GMK/SA/DSA brand
+    const nonMatrixBrandRx = /^(epbt|kat|kam|pbtfans|keykobo|kkb|mw|kbs|tut|osume|dmk|domikey|crp|dcx|ws|sw|jtk|mt3|nicepbt)\b/i;
+    const isNonMatrixBrand = nonMatrixBrandRx.test(cleanQuery);
+
+    // Stage 2: Search online MatrixZJ catalog (parallel) for GMK / SA / DSA or generic queries
+    if (!isNonMatrixBrand) {
       try {
         const catalogResults = await this.searchOnlineCatalogMulti(cleanQuery);
         catalogResults.forEach(item => {
-          const isDup = matchedSets.some(s => s.name.toLowerCase().includes(item.name.toLowerCase()));
+          const isDup = matchedSets.some(
+            s => s.name.toLowerCase() === item.name.toLowerCase()
+          );
           if (!isDup) {
             matchedSets.push(item);
           }
@@ -471,7 +568,19 @@ class KeycapSearchService {
       }
     }
 
-    // 3. Web Image Search Fallback (for Keykobo, PBTfans, MW, Osume, ePBT, TUT, KBS, or unlisted GMK sets)
+    // Stage 3: Fast Global Vendor Shopify JSON Search (for Keykobo, PBTfans, Osume, MW, ePBT, or newer GMK sets)
+    if (matchedSets.length === 0) {
+      try {
+        const vendorResults = await this.searchVendorCatalogsParallel(rawQuery);
+        if (vendorResults && vendorResults.length > 0) {
+          matchedSets.push(...vendorResults);
+        }
+      } catch (err) {
+        console.warn('Vendor catalog search failed:', err);
+      }
+    }
+
+    // Stage 4: Strict Bing OIP Image Search Fallback (with automatic retry)
     if (matchedSets.length === 0) {
       try {
         const webResult = await this.searchWebImagesFallback(rawQuery);
@@ -488,111 +597,230 @@ class KeycapSearchService {
 
     if (matchedSets.length === 0) return null;
 
-    // Return the top set, and keep the list of matched sets for user switching
     const bestMatch = matchedSets[0];
     return {
       ...bestMatch,
-      matchedSets: matchedSets.slice(0, 6) // Top 6 sets for family selection
+      matchedSets: matchedSets.slice(0, 6)
     };
   }
 
   /**
-   * Live Web Image Search fallback via Bing Images (CORS-accessible via r.jina.ai)
-   * Enables searching Keykobo, PBTfans, MW, Osume, ePBT, TUT, KBS, etc.
+   * Stage 3: Fast Parallel Shopify JSON Search across major keyboard vendors via r.jina.ai (~600ms).
+   * Accurately finds Keykobo, PBTfans, Osume, MW, ePBT, TUT, and newer GMK sets with official product renders.
    */
-  async searchWebImagesFallback(rawQuery) {
-    const searchTerm = /\b(keycap|keycaps|키캡)\b/i.test(rawQuery)
-      ? rawQuery
-      : `${rawQuery} keycaps`;
+  async searchVendorCatalogsParallel(rawQuery) {
+    const vendors = [
+      'swagkeys.com',
+      'divinikey.com',
+      'oblotzky.industries',
+      'novelkeys.com',
+      'osume.com',
+      'cannonkeys.com'
+    ];
 
-    const targetUrl = `https://www.bing.com/images/search?q=${encodeURIComponent(searchTerm)}&first=1`;
-    const proxyUrl = `https://r.jina.ai/${targetUrl}`;
+    const excludeTitleRx = /\b(switch|switches|deskmat|deskpad|stabilizer|stabilizers|stabs|wrist\s*rest|cable|coiled|artisan\s*tray|tray|carry\s*case|carrying\s*case|lube|opener|puller|film|films|spring|springs|barebone|pcb|plate|foam|stickers|bag|cloth)\b/i;
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 9000);
+    const fetchVendorSuggest = async (domain) => {
+      const suggestUrl = `https://${domain}/search/suggest.json?q=${encodeURIComponent(rawQuery)}&resources[type]=product&resources[limit]=6&resources[options][fields]=title,vendor,product_type`;
+      const proxyUrl = `https://r.jina.ai/${suggestUrl}`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4200);
 
-    try {
-      const res = await fetch(proxyUrl, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      if (!res.ok) return null;
-
-      const text = await res.text();
-      const imgRegex = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
-      const candidates = [];
-      const seenUrls = new Set();
-
-      let match;
-      while ((match = imgRegex.exec(text)) !== null) {
-        const alt = (match[1] || '').trim();
-        let url = match[2].trim();
-
-        // Filter out Bing UI icons, SVGs, and tiny logos
-        if (
-          url.includes('r.bing.com/rp/') ||
-          url.includes('.svg') ||
-          url.includes('favicon')
-        ) {
-          continue;
-        }
-
-        // Only keep real image thumbnails from Bing image CDN or direct image URLs
-        if (!url.includes('th.bing.com/th/id/') && !/\.(jpg|jpeg|png|webp)(\?|$)/i.test(url)) {
-          continue;
-        }
-
-        // Upgrade Bing thumbnail resolution parameter for clearer preview
-        if (url.includes('th.bing.com/th/id/')) {
-          url = url.replace(/([?&])w=\d+/, '$1w=600').replace(/([?&])h=\d+/, '$1h=600');
-        }
-
-        if (seenUrls.has(url)) continue;
-        seenUrls.add(url);
-
-        const label = alt && !/^Image \d+$/i.test(alt)
-          ? alt.slice(0, 28)
-          : `웹 검색 결과 ${candidates.length + 1}`;
-
-        candidates.push({ title: label, url });
-        if (candidates.length >= 12) break;
+      try {
+        const res = await fetch(proxyUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!res.ok) return [];
+        const text = await res.text();
+        const jsonStart = text.indexOf('{');
+        if (jsonStart === -1) return [];
+        const data = JSON.parse(text.slice(jsonStart));
+        const products = data?.resources?.results?.products || [];
+        return products.map(p => ({ ...p, _domain: domain }));
+      } catch {
+        clearTimeout(timeoutId);
+        return [];
       }
+    };
 
-      if (candidates.length === 0) return null;
+    const vendorLists = await Promise.all(vendors.map(fetchVendorSuggest));
+    const allProducts = vendorLists.flat();
+    if (allProducts.length === 0) return [];
 
-      return {
-        source: 'web',
-        score: 300,
-        name: `${rawQuery} (웹 검색 결과)`,
-        manufacturer: '',
+    const scoredProducts = [];
+    for (const prod of allProducts) {
+      const title = (prod.title || '').trim();
+      if (!title || excludeTitleRx.test(title)) continue;
+
+      const rawImage = prod.image || prod.featured_image?.url || '';
+      if (!rawImage) continue;
+
+      const score = this.calculateMatchScore(title, [ `${prod.vendor || ''} ${title}`.trim() ], rawQuery);
+      if (score >= 450) {
+        const cleanImg = rawImage.startsWith('//') ? `https:${rawImage}` : rawImage;
+        scoredProducts.push({
+          title,
+          vendor: prod.vendor || '',
+          domain: prod._domain,
+          url: prod.url ? prod.url.split('?')[0] : '',
+          image: cleanImg,
+          score
+        });
+      }
+    }
+
+    if (scoredProducts.length === 0) return [];
+    scoredProducts.sort((a, b) => b.score - a.score);
+
+    // Fetch full product gallery (/products/<handle>.js) for the top match to provide all kit/render photos
+    const bestProd = scoredProducts[0];
+    const galleryCandidates = [];
+    const seenUrls = new Set();
+
+    const addCandidate = (title, url) => {
+      if (!url) return;
+      const normalized = url.startsWith('//') ? `https:${url}` : url;
+      const baseKey = normalized.split('?')[0];
+      if (seenUrls.has(baseKey)) return;
+      seenUrls.add(baseKey);
+      galleryCandidates.push({ title, url: normalized });
+    };
+
+    if (bestProd.url && bestProd.url.includes('/products/')) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3200);
+      try {
+        const prodJsUrl = `https://r.jina.ai/https://${bestProd.domain}${bestProd.url}.js`;
+        const res = await fetch(prodJsUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          const text = await res.text();
+          const jsonStart = text.indexOf('{');
+          if (jsonStart !== -1) {
+            const prodData = JSON.parse(text.slice(jsonStart));
+            if (Array.isArray(prodData.images)) {
+              prodData.images.slice(0, 12).forEach((imgUrl, idx) => {
+                addCandidate(`${bestProd.title} (${idx + 1})`, imgUrl);
+              });
+            }
+          }
+        }
+      } catch {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    // Also include images from other high-scoring matched products
+    scoredProducts.slice(0, 8).forEach(p => {
+      addCandidate(p.title, p.image);
+    });
+
+    if (galleryCandidates.length === 0) return [];
+
+    return [
+      {
+        source: 'vendor',
+        score: bestProd.score,
+        name: bestProd.title,
+        manufacturer: bestProd.vendor || '',
         profile: '',
         material: '',
-        representative: candidates[0].url,
-        candidates
-      };
-    } catch (err) {
-      clearTimeout(timeoutId);
-      console.warn('Web fallback fetch error:', err);
-      return null;
-    }
+        representative: galleryCandidates[0].url,
+        candidates: galleryCandidates.slice(0, 12)
+      }
+    ];
   }
 
   /**
-   * Search online matrixzj catalog with token-based scoring
+   * Stage 4: Live Web Image Search fallback via Bing Images (CORS-accessible via r.jina.ai)
+   * Strictly filters to genuine OIP photo thumbnails (excluding 12x12 ODF favicons & InlineBlock ads)
+   * and retries once automatically if the proxy times out on cold start.
    */
-  async searchOnlineCatalogMulti(cleanQuery) {
-    if (!this.catalogIndex && !this.isLoadingIndex) {
-      this.isLoadingIndex = true;
+  async searchWebImagesFallback(rawQuery) {
+    const cleanQ = rawQuery.replace(/\b(r1|r2|r3|v1|v2)\b/gi, '').trim() || rawQuery.trim();
+    const searchTerms = [
+      /\b(keycap|keycaps|키캡)\b/i.test(rawQuery) ? rawQuery : `${rawQuery} keycaps`,
+      `${cleanQ} keycap set`
+    ];
+
+    for (let attempt = 0; attempt < searchTerms.length; attempt++) {
+      const searchTerm = searchTerms[attempt];
+      const targetUrl = `https://www.bing.com/images/search?q=${encodeURIComponent(searchTerm)}&first=1`;
+      const proxyUrl = `https://r.jina.ai/${targetUrl}`;
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6500);
+
       try {
-        const res = await fetch('https://matrixzj.github.io/assets/js/search-data.json');
-        if (res.ok) {
-          this.catalogIndex = await res.json();
+        const res = await fetch(proxyUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!res.ok) continue;
+
+        const text = await res.text();
+        const imgRegex = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
+        const candidates = [];
+        const seenUrls = new Set();
+
+        let match;
+        while ((match = imgRegex.exec(text)) !== null) {
+          const alt = (match[1] || '').trim();
+          let url = match[2].trim();
+
+          // Strictly accept ONLY genuine Bing OIP photo thumbnails (reject ODF 12x12 favicons & InlineBlock sidebar ads)
+          if (url.includes('th.bing.com/th/id/')) {
+            if (!url.includes('/th/id/OIP.') || url.includes('pid=InlineBlock')) {
+              continue;
+            }
+            // Strip pid/w/h and request clean 600px preview
+            const baseOip = url.split('?')[0];
+            url = `${baseOip}?w=600&h=600&c=7&r=0&o=5&pid=1.7`;
+          } else if (/\.(jpg|jpeg|png|webp)(\?|$)/i.test(url)) {
+            if (url.includes('favicon') || url.includes('logo') || url.includes('icon')) {
+              continue;
+            }
+          } else {
+            continue;
+          }
+
+          if (seenUrls.has(url)) continue;
+          seenUrls.add(url);
+
+          const cleanAlt = alt
+            .replace(/^Image \d+:?\s*/i, '')
+            .trim();
+          const label = cleanAlt
+            ? cleanAlt.slice(0, 28)
+            : `웹 검색 결과 ${candidates.length + 1}`;
+
+          candidates.push({ title: label, url });
+          if (candidates.length >= 12) break;
         }
-      } catch (e) {
-        console.error('Failed to load matrixzj catalog index:', e);
-      } finally {
-        this.isLoadingIndex = false;
+
+        if (candidates.length > 0) {
+          return {
+            source: 'web',
+            score: 300,
+            name: `${rawQuery} (웹 검색 결과)`,
+            manufacturer: '',
+            profile: '',
+            material: '',
+            representative: candidates[0].url,
+            candidates
+          };
+        }
+      } catch (err) {
+        clearTimeout(timeoutId);
+        console.warn(`Web fallback attempt ${attempt + 1} error:`, err);
       }
     }
 
+    return null;
+  }
+
+  /**
+   * Search online matrixzj catalog with strict token scoring & parallel detail fetching
+   */
+  async searchOnlineCatalogMulti(cleanQuery) {
+    await this.ensureCatalogLoaded();
     if (!this.catalogIndex) return [];
 
     const scoredKeys = [];
@@ -601,7 +829,11 @@ class KeycapSearchService {
       if (!item.title || !item.url) continue;
 
       // Only keycap doc pages (GMK, SA, DSA)
-      if (!item.url.includes('/docs/gmk-keycaps/') && !item.url.includes('/docs/sa-keycaps/') && !item.url.includes('/docs/dsa-keycaps/')) {
+      if (
+        !item.url.includes('/docs/gmk-keycaps/') &&
+        !item.url.includes('/docs/sa-keycaps/') &&
+        !item.url.includes('/docs/dsa-keycaps/')
+      ) {
         continue;
       }
 
@@ -612,90 +844,102 @@ class KeycapSearchService {
         : item.url.includes('/docs/dsa-keycaps/')
           ? 'DSA'
           : 'GMK';
-      const score = this.calculateMatchScore(`${targetBrand} ${cleanTitle}`, [cleanTitle, `${targetBrand} ${cleanTitle}`], cleanQuery);
+      const score = this.calculateMatchScore(
+        `${targetBrand} ${cleanTitle}`,
+        [cleanTitle, `${targetBrand} ${cleanTitle}`],
+        cleanQuery
+      );
 
-      if (score > 100) {
+      if (score >= 450) {
         scoredKeys.push({ key, item, cleanTitle, score });
       }
     }
 
+    if (scoredKeys.length === 0) return [];
     scoredKeys.sort((a, b) => b.score - a.score);
 
-    const results = [];
-    const topKeys = scoredKeys.slice(0, 3); // Fetch detail for top 3 matches
+    const topKeys = scoredKeys.slice(0, 3);
 
-    for (const { item, cleanTitle, score } of topKeys) {
-      try {
-        const detail = await this.fetchMatrixDetailPage(item.url, cleanTitle, score);
-        if (detail) results.push(detail);
-      } catch (e) {
+    // Fetch top 3 detail pages in parallel for 3x faster response
+    const detailPromises = topKeys.map(({ item, cleanTitle, score }) =>
+      this.fetchMatrixDetailPage(item.url, cleanTitle, score).catch(e => {
         console.warn('Failed detail parse for:', item.title, e);
-      }
-    }
+        return null;
+      })
+    );
 
-    return results;
+    const resolvedDetails = await Promise.all(detailPromises);
+    return resolvedDetails.filter(Boolean);
   }
 
   async fetchMatrixDetailPage(url, title, score) {
     const pageUrl = url.startsWith('http') ? url : `https://matrixzj.github.io${url}`;
-    const res = await fetch(pageUrl);
-    if (!res.ok) return null;
-    const html = await res.text();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4500);
+    try {
+      const res = await fetch(pageUrl, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (!res.ok) return null;
+      const html = await res.text();
 
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    const imgElements = Array.from(doc.querySelectorAll('img'));
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const imgElements = Array.from(doc.querySelectorAll('img'));
 
-    const candidates = [];
-    let representative = '';
+      const candidates = [];
+      let representative = '';
 
-    imgElements.forEach(img => {
-      let src = img.getAttribute('src') || '';
-      if (!src) return;
-      if (src.includes('history.png') || src.includes('order.png')) return;
+      imgElements.forEach(img => {
+        let src = img.getAttribute('src') || '';
+        if (!src) return;
+        if (src.includes('history.png') || src.includes('order.png')) return;
 
-      if (src.startsWith('/')) {
-        src = `https://matrixzj.github.io${src}`;
+        if (src.startsWith('/')) {
+          src = `https://matrixzj.github.io${src}`;
+        }
+
+        const alt = img.getAttribute('alt') || '';
+        let itemTitle = '키캡 사진';
+
+        if (src.includes('kits_pics')) {
+          const filename = src.split('/').pop().replace(/\.[^/.]+$/, '');
+          itemTitle = `Kit: ${filename.toUpperCase()}`;
+        } else if (src.includes('rendering_pics')) {
+          const filename = src.split('/').pop().replace(/\.[^/.]+$/, '');
+          itemTitle = `Render: ${filename}`;
+          if (!representative) representative = src;
+        }
+
+        if (alt) itemTitle = `${itemTitle} (${alt})`;
+        candidates.push({ title: itemTitle, url: src });
+      });
+
+      if (!representative && candidates.length > 0) {
+        representative = candidates[0].url;
       }
 
-      const alt = img.getAttribute('alt') || '';
-      let itemTitle = '키캡 사진';
+      if (candidates.length === 0) return null;
 
-      if (src.includes('kits_pics')) {
-        const filename = src.split('/').pop().replace(/\.[^/.]+$/, '');
-        itemTitle = `Kit: ${filename.toUpperCase()}`;
-      } else if (src.includes('rendering_pics')) {
-        const filename = src.split('/').pop().replace(/\.[^/.]+$/, '');
-        itemTitle = `Render: ${filename}`;
-        if (!representative) representative = src;
-      }
+      const brand = pageUrl.includes('sa-keycaps')
+        ? 'SA'
+        : pageUrl.includes('dsa-keycaps')
+          ? 'DSA'
+          : 'GMK';
 
-      if (alt) itemTitle = `${itemTitle} (${alt})`;
-      candidates.push({ title: itemTitle, url: src });
-    });
-
-    if (!representative && candidates.length > 0) {
-      representative = candidates[0].url;
+      return {
+        source: 'matrixzj',
+        score,
+        name: `${brand} ${title}`,
+        manufacturer: brand,
+        profile: brand === 'SA' ? 'SA' : brand === 'DSA' ? 'DSA' : 'Cherry (체리)',
+        material: 'ABS 이중사출',
+        representative,
+        candidates
+      };
+    } catch (err) {
+      clearTimeout(timeoutId);
+      return null;
     }
-
-    if (candidates.length === 0) return null;
-
-    const brand = pageUrl.includes('sa-keycaps')
-      ? 'SA'
-      : pageUrl.includes('dsa-keycaps')
-        ? 'DSA'
-        : 'GMK';
-
-    return {
-      source: 'matrixzj',
-      score,
-      name: `${brand} ${title}`,
-      manufacturer: brand,
-      profile: brand === 'SA' ? 'SA' : brand === 'DSA' ? 'DSA' : 'Cherry (체리)',
-      material: 'ABS 이중사출',
-      representative,
-      candidates
-    };
   }
 
   /**
