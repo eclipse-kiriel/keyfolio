@@ -14,9 +14,9 @@
   <link rel="apple-touch-icon" href="icons/icon.svg">
 
   <!-- Stylesheets -->
-  <link rel="stylesheet" href="css/main.css?v=20">
-  <link rel="stylesheet" href="css/components.css?v=20">
-  <link rel="stylesheet" href="css/responsive.css?v=20">
+  <link rel="stylesheet" href="css/main.css?v=21">
+  <link rel="stylesheet" href="css/components.css?v=21">
+  <link rel="stylesheet" href="css/responsive.css?v=21">
 
   <!-- Instant Theme Initializer -->
   <script>
@@ -629,6 +629,7 @@
                     후보 직접 선택
                   </button>
                   <button type="button" id="btn-kc-cancel-search" class="btn btn-ghost btn-sm">취소</button>
+                  <a id="btn-kc-google-fallback" href="https://www.google.com/search?tbm=isch" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm" style="text-decoration: none;">Google 검색 ↗</a>
                 </div>
               </div>
             </div>
@@ -1057,7 +1058,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js?v=20', { updateViaCache: 'none' })
+        navigator.serviceWorker.register('./service-worker.js?v=21', { updateViaCache: 'none' })
           .then(reg => {
             console.log('ServiceWorker registered:', reg.scope);
             // Check for updates on every app launch
@@ -1078,7 +1079,7 @@
   </script>
 
   <!-- Application Logic Modules -->
-  <script type="module" src="js/app.js?v=20"></script>
+  <script type="module" src="js/app.js?v=21"></script>
 
 </body>
 

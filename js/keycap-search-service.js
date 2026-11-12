@@ -358,19 +358,32 @@ class KeycapSearchService {
 
   /**
    * Word-Boundary / Exact Token Matching Scorer.
-   * Prevents false positives like matching "mono" to "monochrome".
+   * Prevents false positives like matching "mono" to "monochrome",
+   * and respects explicit brand prefixes (e.g. "Keykobo ..." vs "GMK ...").
    */
   calculateMatchScore(targetName, keywords = [], rawQuery) {
     const normQuery = rawQuery.toLowerCase().trim();
     if (!normQuery) return 0;
 
+    const brandRx = /^(gmk|sa|epbt|dsa|kat|kam|pbtfans|keykobo|kkb|mw|kbs|tut|osume|dmk|domikey|crp|dcx|ws)\b/i;
+    const qBrandMatch = normQuery.match(brandRx);
+    const tBrandMatch = targetName.toLowerCase().trim().match(brandRx);
+
+    // If user explicitly specified a brand (e.g. "Keykobo") and target has a different brand ("GMK"), reject
+    if (qBrandMatch && tBrandMatch) {
+      const qB = qBrandMatch[1].toLowerCase() === 'kkb' ? 'keykobo' : qBrandMatch[1].toLowerCase();
+      const tB = tBrandMatch[1].toLowerCase() === 'kkb' ? 'keykobo' : tBrandMatch[1].toLowerCase();
+      if (qB !== tB) return 0;
+    }
+
     // Strip brand prefixes: "gmk mono" -> "mono"
-    const qClean = normQuery.replace(/^(gmk|sa|epbt|dsa|kat|kam|pbtfans|keykobo)\s+/i, '').trim();
+    const stripBrandRx = /^(gmk|sa|epbt|dsa|kat|kam|pbtfans|keykobo|kkb|mw|kbs|tut|osume|dmk|domikey|crp|dcx|ws)\s+/i;
+    const qClean = normQuery.replace(stripBrandRx, '').trim();
     const qTokens = qClean.split(/\s+/).filter(Boolean);
     if (qTokens.length === 0) return 0;
 
     const normTarget = targetName.toLowerCase().trim();
-    const tClean = normTarget.replace(/^(gmk|sa|epbt|dsa|kat|kam|pbtfans|keykobo)\s+/i, '').replace(/[^a-z0-9가-힣\s]/g, ' ').trim();
+    const tClean = normTarget.replace(stripBrandRx, '').replace(/[^a-z0-9가-힣\s]/g, ' ').trim();
     const tTokens = tClean.split(/\s+/).filter(Boolean);
 
     // 1. Exact Match on stripped name: e.g. "mono" === "mono"
@@ -416,11 +429,12 @@ class KeycapSearchService {
   /**
    * Search keycap images by keyword.
    * Returns multiple matched set candidates (e.g. Dolch Family or Mono)
-   * so the user can easily toggle between variations.
+   * and falls back to live Web/Bing image search for non-GMK or unlisted sets.
    */
   async searchKeycap(query) {
     if (!query || !query.trim()) return null;
-    const cleanQuery = query.trim().toLowerCase();
+    const rawQuery = query.trim();
+    const cleanQuery = rawQuery.toLowerCase();
 
     const matchedSets = [];
 
@@ -441,7 +455,7 @@ class KeycapSearchService {
       }
     }
 
-    // 2. If presets didn't give a definitive 1000-point exact match, search online matrixzj catalog
+    // 2. Search online matrixzj catalog (GMK / SA / DSA) unless we already have a 1000pt preset match & enough items
     const hasPerfectMatch = matchedSets.some(s => s.score >= 950);
     if (!hasPerfectMatch || matchedSets.length < 3) {
       try {
@@ -457,6 +471,18 @@ class KeycapSearchService {
       }
     }
 
+    // 3. Web Image Search Fallback (for Keykobo, PBTfans, MW, Osume, ePBT, TUT, KBS, or unlisted GMK sets)
+    if (matchedSets.length === 0) {
+      try {
+        const webResult = await this.searchWebImagesFallback(rawQuery);
+        if (webResult) {
+          matchedSets.push(webResult);
+        }
+      } catch (err) {
+        console.warn('Web image search fallback failed:', err);
+      }
+    }
+
     // Sort by match score descending
     matchedSets.sort((a, b) => b.score - a.score);
 
@@ -468,6 +494,85 @@ class KeycapSearchService {
       ...bestMatch,
       matchedSets: matchedSets.slice(0, 6) // Top 6 sets for family selection
     };
+  }
+
+  /**
+   * Live Web Image Search fallback via Bing Images (CORS-accessible via r.jina.ai)
+   * Enables searching Keykobo, PBTfans, MW, Osume, ePBT, TUT, KBS, etc.
+   */
+  async searchWebImagesFallback(rawQuery) {
+    const searchTerm = /\b(keycap|keycaps|키캡)\b/i.test(rawQuery)
+      ? rawQuery
+      : `${rawQuery} keycaps`;
+
+    const targetUrl = `https://www.bing.com/images/search?q=${encodeURIComponent(searchTerm)}&first=1`;
+    const proxyUrl = `https://r.jina.ai/${targetUrl}`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 9000);
+
+    try {
+      const res = await fetch(proxyUrl, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (!res.ok) return null;
+
+      const text = await res.text();
+      const imgRegex = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
+      const candidates = [];
+      const seenUrls = new Set();
+
+      let match;
+      while ((match = imgRegex.exec(text)) !== null) {
+        const alt = (match[1] || '').trim();
+        let url = match[2].trim();
+
+        // Filter out Bing UI icons, SVGs, and tiny logos
+        if (
+          url.includes('r.bing.com/rp/') ||
+          url.includes('.svg') ||
+          url.includes('favicon')
+        ) {
+          continue;
+        }
+
+        // Only keep real image thumbnails from Bing image CDN or direct image URLs
+        if (!url.includes('th.bing.com/th/id/') && !/\.(jpg|jpeg|png|webp)(\?|$)/i.test(url)) {
+          continue;
+        }
+
+        // Upgrade Bing thumbnail resolution parameter for clearer preview
+        if (url.includes('th.bing.com/th/id/')) {
+          url = url.replace(/([?&])w=\d+/, '$1w=600').replace(/([?&])h=\d+/, '$1h=600');
+        }
+
+        if (seenUrls.has(url)) continue;
+        seenUrls.add(url);
+
+        const label = alt && !/^Image \d+$/i.test(alt)
+          ? alt.slice(0, 28)
+          : `웹 검색 결과 ${candidates.length + 1}`;
+
+        candidates.push({ title: label, url });
+        if (candidates.length >= 12) break;
+      }
+
+      if (candidates.length === 0) return null;
+
+      return {
+        source: 'web',
+        score: 300,
+        name: `${rawQuery} (웹 검색 결과)`,
+        manufacturer: '',
+        profile: '',
+        material: '',
+        representative: candidates[0].url,
+        candidates
+      };
+    } catch (err) {
+      clearTimeout(timeoutId);
+      console.warn('Web fallback fetch error:', err);
+      return null;
+    }
   }
 
   /**
@@ -495,14 +600,19 @@ class KeycapSearchService {
     for (const [key, item] of Object.entries(this.catalogIndex)) {
       if (!item.title || !item.url) continue;
 
-      // Only keycap doc pages
-      if (!item.url.includes('/docs/gmk-keycaps/') && !item.url.includes('/docs/sa-keycaps/')) {
+      // Only keycap doc pages (GMK, SA, DSA)
+      if (!item.url.includes('/docs/gmk-keycaps/') && !item.url.includes('/docs/sa-keycaps/') && !item.url.includes('/docs/dsa-keycaps/')) {
         continue;
       }
 
       // Extract set title: "Monochrome R2 흑백R2" -> "Monochrome R2"
       const cleanTitle = item.title.split(/[\u4e00-\u9fa5\u3040-\u30ff]/)[0].trim();
-      const score = this.calculateMatchScore(cleanTitle, [cleanTitle], cleanQuery);
+      const targetBrand = item.url.includes('/docs/sa-keycaps/')
+        ? 'SA'
+        : item.url.includes('/docs/dsa-keycaps/')
+          ? 'DSA'
+          : 'GMK';
+      const score = this.calculateMatchScore(`${targetBrand} ${cleanTitle}`, [cleanTitle, `${targetBrand} ${cleanTitle}`], cleanQuery);
 
       if (score > 100) {
         scoredKeys.push({ key, item, cleanTitle, score });
@@ -570,14 +680,18 @@ class KeycapSearchService {
 
     if (candidates.length === 0) return null;
 
-    const brand = pageUrl.includes('sa-keycaps') ? 'SA' : 'GMK';
+    const brand = pageUrl.includes('sa-keycaps')
+      ? 'SA'
+      : pageUrl.includes('dsa-keycaps')
+        ? 'DSA'
+        : 'GMK';
 
     return {
       source: 'matrixzj',
       score,
       name: `${brand} ${title}`,
       manufacturer: brand,
-      profile: brand === 'SA' ? 'SA' : 'Cherry (체리)',
+      profile: brand === 'SA' ? 'SA' : brand === 'DSA' ? 'DSA' : 'Cherry (체리)',
       material: 'ABS 이중사출',
       representative,
       candidates

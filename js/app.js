@@ -527,46 +527,97 @@ class App {
   }
 
   // ==================== IMAGE COMPRESSION & RESIZING ====================
-  handleImageUpload(e, index) {
-    const file = e.target.files[0];
+  createResizedImage(file, maxDimension = 600, quality = 0.82) {
+    return new Promise((resolve, reject) => {
+      const processImage = (img) => {
+        try {
+          let width = img.naturalWidth || img.width;
+          let height = img.naturalHeight || img.height;
+
+          if (!width || !height) {
+            reject(new Error('이미지 크기를 읽을 수 없습니다.'));
+            return;
+          }
+
+          if (width > height) {
+            if (width > maxDimension) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            }
+          } else {
+            if (height > maxDimension) {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Try WebP first; if browser lacks WebP encoder (falls back to PNG), use JPEG
+          let dataUrl = canvas.toDataURL('image/webp', quality);
+          if (!dataUrl || !dataUrl.startsWith('data:image/webp')) {
+            dataUrl = canvas.toDataURL('image/jpeg', quality);
+          }
+
+          if (!dataUrl || dataUrl === 'data:,') {
+            reject(new Error('이미지 변환에 실패했습니다.'));
+            return;
+          }
+          resolve(dataUrl);
+        } catch (err) {
+          reject(err);
+        }
+      };
+
+      const loadViaFileReader = () => {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const img = new Image();
+          img.onload = () => processImage(img);
+          img.onerror = () => reject(new Error('브라우저에서 지원하지 않는 이미지 형식입니다. (HEIC 등)'));
+          img.src = evt.target.result;
+        };
+        reader.onerror = () => reject(new Error('파일을 읽을 수 없습니다.'));
+        reader.readAsDataURL(file);
+      };
+
+      if (window.URL && URL.createObjectURL) {
+        const objectUrl = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          URL.revokeObjectURL(objectUrl);
+          processImage(img);
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          loadViaFileReader();
+        };
+        img.src = objectUrl;
+      } else {
+        loadViaFileReader();
+      }
+    });
+  }
+
+  async handleImageUpload(e, index) {
+    const file = e.target.files && e.target.files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const img = new Image();
-      img.onload = () => {
-        // Resize to max 600px maintaining aspect ratio
-        const maxDimension = 600;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > maxDimension) {
-            height = Math.round((height * maxDimension) / width);
-            width = maxDimension;
-          }
-        } else {
-          if (height > maxDimension) {
-            width = Math.round((width * maxDimension) / height);
-            height = maxDimension;
-          }
-        }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // Convert to compact WebP (or JPEG fallback)
-        const compressedBase64 = canvas.toDataURL('image/webp', 0.8) || canvas.toDataURL('image/jpeg', 0.8);
-        this.uploadedImages[index] = compressedBase64;
-        this.updateImageSlotUI(index, compressedBase64);
-        this.showToast(`사진 ${index + 1}이 압축되어 첨부되었습니다.`, 'info');
-      };
-      img.src = evt.target.result;
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressedBase64 = await this.createResizedImage(file, 600, 0.8);
+      this.uploadedImages[index] = compressedBase64;
+      this.updateImageSlotUI(index, compressedBase64);
+      this.showToast(`사진 ${index + 1}이 압축되어 첨부되었습니다.`, 'info');
+    } catch (err) {
+      console.error('Keyboard image upload error:', err);
+      this.showToast('사진 변환에 실패했습니다. JPG/PNG 이미지를 선택해주세요.', 'error');
+    } finally {
+      e.target.value = '';
+    }
   }
 
   removeImage(index) {
@@ -1282,21 +1333,43 @@ class App {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
+    const isImageType = file.type && file.type.startsWith('image/');
+    const isImageExt = /\.(jpe?g|png|webp|gif|bmp|avif|heic|heif)$/i.test(file.name || '');
+    if (!isImageType && !isImageExt) {
       this.showToast('이미지 파일만 등록할 수 있습니다.', 'error');
+      e.target.value = '';
       return;
     }
 
     try {
-      this.showToast('사진을 최적화(WebP) 변환 중...', 'info');
+      this.showToast('사진을 최적화 변환 중...', 'info');
       const resizedBase64 = await this.createResizedImage(file, 600, 0.82);
       this.keycapUploadedImage = resizedBase64;
       this.updateKeycapImageSlot();
+      this.closeKeycapSearchBox();
       this.showToast('키캡 사진이 성공적으로 등록되었습니다!', 'success');
     } catch (err) {
       console.error('Keycap manual image upload error:', err);
-      this.showToast('사진 처리 중 오류가 발생했습니다.', 'error');
+      this.showToast(err.message || '사진 변환에 실패했습니다. (JPG/PNG 권장)', 'error');
+    } finally {
+      e.target.value = '';
     }
+  }
+
+  // Clear all previous search UI & state to prevent stale results across keycaps
+  resetKeycapSearchState() {
+    this.matchedKeycapSets = [];
+    this.activeKeycapSet = null;
+    this.currentKeycapCandidates = [];
+    this.selectedKeycapCandidateUrl = '';
+
+    if (this.kcMatchedSetsChips) this.kcMatchedSetsChips.innerHTML = '';
+    if (this.kcMatchedSetsWrapper) this.kcMatchedSetsWrapper.style.display = 'none';
+    if (this.kcCandidateGrid) this.kcCandidateGrid.innerHTML = '';
+    if (this.kcCandidateContainer) this.kcCandidateContainer.style.display = 'none';
+    if (this.btnKcShowCandidates) this.btnKcShowCandidates.classList.remove('active');
+    if (this.kcSearchPreviewImg) this.kcSearchPreviewImg.removeAttribute('src');
+    if (this.kcSearchPreviewTag) this.kcSearchPreviewTag.textContent = '';
   }
 
   // Automated Search Workflow
@@ -1328,25 +1401,31 @@ class App {
     if (btnText) btnText.textContent = '검색 중...';
     this.btnKcAutoSearch.disabled = true;
 
+    // Always clear previous keycap's search results before starting a new search
+    this.resetKeycapSearchState();
+
+    // Update Google fallback link for current query
+    const googleLink = document.getElementById('btn-kc-google-fallback');
+    if (googleLink) {
+      googleLink.href = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query + ' keycaps')}`;
+    }
+
     // Show confirm box in loading state
     this.kcSearchConfirmBox.style.display = 'block';
     this.kcSearchResultName.textContent = query;
-    this.kcSearchStatusText.textContent = '웹/카탈로그에서 사진 찾는 중...';
-    this.kcSearchPreviewImg.src = '';
-    this.kcCandidateContainer.style.display = 'none';
+    this.kcSearchStatusText.textContent = '카탈로그 및 웹 이미지 검색 중...';
 
     try {
       const result = await keycapSearchService.searchKeycap(query);
 
       if (!result || !result.representative) {
-        this.kcSearchStatusText.textContent = '일치하는 사진을 찾지 못했습니다. 직접 사진을 등록해보세요.';
+        this.kcSearchStatusText.textContent = '일치하는 사진을 찾지 못했습니다. 아래 구글 검색 또는 직접 업로드를 이용해보세요.';
         this.kcSearchPreviewTag.textContent = '검색 결과 없음';
-        if (this.kcMatchedSetsWrapper) this.kcMatchedSetsWrapper.style.display = 'none';
         this.showToast(`"${query}" 사진을 찾지 못했습니다.`, 'warning');
         return;
       }
 
-      // Populate multiple matched sets (e.g. Dolch family or Mono)
+      // Populate multiple matched sets (e.g. Dolch family or Mono or Web Fallback)
       this.matchedKeycapSets = result.matchedSets && result.matchedSets.length > 0 ? result.matchedSets : [result];
       this.renderKeycapMatchedSetChips();
       this.selectKeycapMatchedSet(this.matchedKeycapSets[0]);
@@ -1398,7 +1477,9 @@ class App {
     this.selectedKeycapCandidateUrl = set.representative;
 
     this.kcSearchResultName.textContent = set.name;
-    this.kcSearchStatusText.textContent = `대표 렌더 및 후보 ${this.currentKeycapCandidates.length}장`;
+    this.kcSearchStatusText.textContent = set.source === 'web'
+      ? `웹 검색 이미지 ${this.currentKeycapCandidates.length}장 (원하는 사진을 선택하세요)`
+      : `대표 렌더 및 후보 ${this.currentKeycapCandidates.length}장`;
     this.kcSearchPreviewImg.src = set.representative;
     this.kcSearchPreviewTag.textContent = this.currentKeycapCandidates[0]?.title || '대표 렌더링';
 
@@ -1417,6 +1498,12 @@ class App {
     }
 
     this.renderKeycapCandidates();
+
+    // Auto-expand candidate grid for web fallback results so user can pick from multiple images
+    if (set.source === 'web' && this.kcCandidateContainer) {
+      this.kcCandidateContainer.style.display = 'block';
+      if (this.btnKcShowCandidates) this.btnKcShowCandidates.classList.add('active');
+    }
   }
 
   renderKeycapCandidates() {
@@ -1493,15 +1580,7 @@ class App {
     if (this.kcSearchConfirmBox) {
       this.kcSearchConfirmBox.style.display = 'none';
     }
-    if (this.kcMatchedSetsWrapper) {
-      this.kcMatchedSetsWrapper.style.display = 'none';
-    }
-    if (this.kcCandidateContainer) {
-      this.kcCandidateContainer.style.display = 'none';
-    }
-    this.matchedKeycapSets = [];
-    this.currentKeycapCandidates = [];
-    this.selectedKeycapCandidateUrl = '';
+    this.resetKeycapSearchState();
   }
 
   handleKeycapSubmit(e) {
