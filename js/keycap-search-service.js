@@ -410,10 +410,10 @@ class KeycapSearchService {
     const normTarget = stripStoreTags(targetName).toLowerCase();
     const normVendor = (targetVendor || '').toLowerCase().trim();
 
-    const brandWordRx = /\b(gmk|sa|epbt|dsa|kat|kam|pbtfans|keykobo|kkb|mw|kbs|tut|osume|dmk|domikey|crp|dcx|ws|sw|jtk|mt3|sp|nicepbt)\b/gi;
+    const brandWordRx = /\b(gmk|sa|epbt|dsa|kat|kam|pbtfans|key\s*kobo|kkb|mw|kbs|tut|osume|dmk|domikey|crp|dcx|ws|sw|jtk|mt3|sp|nicepbt)\b/gi;
     const normalizeBrandToken = (b) => {
-      const lower = b.toLowerCase();
-      if (lower === 'kkb') return 'keykobo';
+      const lower = b.toLowerCase().replace(/\s+/g, '');
+      if (lower === 'kkb' || lower === 'keykobo') return 'keykobo';
       if (lower === 'dmk') return 'domikey';
       return lower;
     };
@@ -636,10 +636,15 @@ class KeycapSearchService {
       'oblotzky.industries',
       'novelkeys.com',
       'osume.com',
-      'cannonkeys.com'
+      'cannonkeys.com',
+      'unikeyboards.com',
+      'keebzncables.com',
+      'ktechs.store',
+      'prototypist.net',
+      'mechanicalkeyboards.com'
     ];
 
-    const excludeTitleRx = /\b(switch|switches|deskmat|deskpad|stabilizer|stabilizers|stabs|wrist\s*rest|cable|coiled|artisan\s*tray|tray|carry\s*case|carrying\s*case|lube|opener|puller|film|films|spring|springs|barebone|pcb|plate|foam|stickers|bag|cloth)\b/i;
+    const excludeTitleRx = /\b(switch|switches|desk\s*mats?|desk\s*pads?|stabilizers?|stabs|wrist\s*rests?|cables?|coiled|artisan\s*trays?|trays?|carry(?:ing)?\s*cases?|lube|openers?|pullers?|films?|springs?|barebones?|pcbs?|plates?|foams?|stickers?|bags?|cloths?)\b/i;
 
     const fetchVendorSuggest = async (domain) => {
       const suggestUrl = `https://${domain}/search/suggest.json?q=${encodeURIComponent(rawQuery)}&resources[type]=product&resources[limit]=6&resources[options][fields]=title,vendor,product_type`;
@@ -760,11 +765,16 @@ class KeycapSearchService {
   }
 
   /**
-   * Stage 4: Live Web Image Search fallback via Bing Images (CORS-accessible via r.jina.ai)
-   * Strictly filters to genuine OIP photo thumbnails (excluding 12x12 ODF favicons & InlineBlock ads)
-   * and tries exact quoted phrase first before broader fallback.
+   * Stage 4: Live Web Image Search fallback via Naver Images (for Korean queries) & Bing Images
+   * Strictly filters to genuine photo thumbnails and excludes UI icons/banners.
    */
   async searchWebImagesFallback(rawQuery) {
+    const hasHangul = /[가-힣]/.test(rawQuery);
+    if (hasHangul) {
+      const naverResult = await this.searchNaverImagesFallback(rawQuery);
+      if (naverResult) return naverResult;
+    }
+
     const cleanQ = rawQuery.replace(/\b(r1|r2|r3|v1|v2)\b/gi, '').trim() || rawQuery.trim();
     const hasKeycapWord = /\b(keycap|keycaps|키캡)\b/i.test(rawQuery);
     const searchTerms = [
@@ -772,6 +782,9 @@ class KeycapSearchService {
       hasKeycapWord ? rawQuery : `${rawQuery} keycaps`,
       `${cleanQ} keycap set`
     ];
+
+    const candidates = [];
+    const seenUrls = new Set();
 
     for (let attempt = 0; attempt < searchTerms.length; attempt++) {
       const searchTerm = searchTerms[attempt];
@@ -788,8 +801,6 @@ class KeycapSearchService {
 
         const text = await res.text();
         const imgRegex = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
-        const candidates = [];
-        const seenUrls = new Set();
 
         let match;
         while ((match = imgRegex.exec(text)) !== null) {
@@ -826,25 +837,90 @@ class KeycapSearchService {
           if (candidates.length >= 12) break;
         }
 
-        if (candidates.length > 0) {
-          return {
-            source: 'web',
-            score: 300,
-            name: `${rawQuery} (웹 검색 결과)`,
-            manufacturer: '',
-            profile: '',
-            material: '',
-            representative: candidates[0].url,
-            candidates
-          };
-        }
+        if (candidates.length >= 4) break;
       } catch (err) {
         clearTimeout(timeoutId);
         console.warn(`Web fallback attempt ${attempt + 1} error:`, err);
       }
     }
 
+    if (candidates.length > 0) {
+      return {
+        source: 'web',
+        score: 300,
+        name: `${rawQuery} (웹 검색 결과)`,
+        manufacturer: '',
+        profile: '',
+        material: '',
+        representative: candidates[0].url,
+        candidates
+      };
+    }
+
     return null;
+  }
+
+  /**
+   * Korean Web Image Search fallback via Naver Images (CORS-accessible via r.jina.ai)
+   * Handles Korean domestic keycap names such as "햄승 라벤더한글".
+   */
+  async searchNaverImagesFallback(rawQuery) {
+    const searchTerm = /키캡|keycap/i.test(rawQuery) ? rawQuery : `${rawQuery} 키캡`;
+    const targetUrl = `https://search.naver.com/search.naver?where=image&query=${encodeURIComponent(searchTerm)}`;
+    const proxyUrl = `https://r.jina.ai/${targetUrl}`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+    try {
+      const res = await fetch(proxyUrl, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (!res.ok) return null;
+
+      const text = await res.text();
+      const imgRegex = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
+      const candidates = [];
+      const seenUrls = new Set();
+
+      let match;
+      while ((match = imgRegex.exec(text)) !== null) {
+        const alt = (match[1] || '').trim();
+        const url = match[2].trim();
+
+        const isNaverPhoto =
+          url.includes('search.pstatic.net/common/') ||
+          url.includes('shopping-phinf.pstatic.net/');
+        if (!isNaverPhoto) continue;
+        if (url.includes('type=f30_30') || url.includes('logo_icon') || url.includes('promo_')) {
+          continue;
+        }
+
+        if (seenUrls.has(url)) continue;
+        seenUrls.add(url);
+
+        const cleanAlt = alt.replace(/^Image \d+:?\s*/i, '').trim();
+        const label = cleanAlt ? cleanAlt.slice(0, 28) : `네이버 검색 ${candidates.length + 1}`;
+        candidates.push({ title: label, url });
+        if (candidates.length >= 12) break;
+      }
+
+      if (candidates.length === 0) return null;
+
+      return {
+        source: 'web',
+        score: 300,
+        name: `${rawQuery} (네이버 이미지 검색)`,
+        manufacturer: '',
+        profile: '',
+        material: '',
+        representative: candidates[0].url,
+        candidates
+      };
+    } catch (err) {
+      clearTimeout(timeoutId);
+      console.warn('Naver image search fallback error:', err);
+      return null;
+    }
   }
 
   /**
