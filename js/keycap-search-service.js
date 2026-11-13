@@ -410,11 +410,13 @@ class KeycapSearchService {
     const normTarget = stripStoreTags(targetName).toLowerCase();
     const normVendor = (targetVendor || '').toLowerCase().trim();
 
-    const brandWordRx = /\b(gmk|sa|epbt|dsa|kat|kam|pbtfans|key\s*kobo|kkb|mw|kbs|tut|osume|dmk|domikey|crp|dcx|ws|sw|jtk|mt3|sp|nicepbt)\b/gi;
+    const brandWordRx = /\b(gmk|sa|epbt|dsa|kat|kam|pbtfans|key\s*kobo|kkb|milky\s*way|mw|keyboard\s*science|kbs|tut|osume|dmk|domikey|crp|dcx|ws|sw|jtk|mt3|sp|nicepbt)\b/gi;
     const normalizeBrandToken = (b) => {
       const lower = b.toLowerCase().replace(/\s+/g, '');
       if (lower === 'kkb' || lower === 'keykobo') return 'keykobo';
-      if (lower === 'dmk') return 'domikey';
+      if (lower === 'dmk' || lower === 'domikey') return 'domikey';
+      if (lower === 'keyboardscience' || lower === 'kbs') return 'kbs';
+      if (lower === 'milkyway' || lower === 'mw') return 'mw';
       return lower;
     };
 
@@ -569,7 +571,7 @@ class KeycapSearchService {
     }
 
     // Check if query explicitly specifies a non-GMK/SA/DSA brand
-    const nonMatrixBrandRx = /^(epbt|kat|kam|pbtfans|keykobo|kkb|mw|kbs|tut|osume|dmk|domikey|crp|dcx|ws|sw|jtk|mt3|nicepbt)\b/i;
+    const nonMatrixBrandRx = /^(epbt|kat|kam|pbtfans|key\s*kobo|kkb|milky\s*way|mw|keyboard\s*science|kbs|tut|osume|dmk|domikey|crp|dcx|ws|sw|jtk|mt3|nicepbt)\b/i;
     const isNonMatrixBrand = nonMatrixBrandRx.test(cleanQuery);
 
     // Stage 2: Search online MatrixZJ catalog (parallel) for GMK / SA / DSA or generic queries
@@ -641,7 +643,10 @@ class KeycapSearchService {
       'keebzncables.com',
       'ktechs.store',
       'prototypist.net',
-      'mechanicalkeyboards.com'
+      'mechanicalkeyboards.com',
+      'elecfox.co',
+      'keybay.tech',
+      'qwertyqop.com'
     ];
 
     const excludeTitleRx = /\b(switch|switches|desk\s*mats?|desk\s*pads?|stabilizers?|stabs|wrist\s*rests?|cables?|coiled|artisan\s*trays?|trays?|carry(?:ing)?\s*cases?|lube|openers?|pullers?|films?|springs?|barebones?|pcbs?|plates?|foams?|stickers?|bags?|cloths?)\b/i;
@@ -775,11 +780,17 @@ class KeycapSearchService {
       if (naverResult) return naverResult;
     }
 
-    const cleanQ = rawQuery.replace(/\b(r1|r2|r3|v1|v2)\b/gi, '').trim() || rawQuery.trim();
-    const hasKeycapWord = /\b(keycap|keycaps|키캡)\b/i.test(rawQuery);
+    // Expand ambiguous abbreviations for general web search (e.g. KBS -> Keyboard Science, avoids Korean TV station KBS)
+    const expandedQuery = rawQuery
+      .replace(/\bkbs\b/gi, 'Keyboard Science')
+      .replace(/\bkkb\b/gi, 'Keykobo')
+      .replace(/\bmw\b/gi, 'Milkyway');
+
+    const cleanQ = expandedQuery.replace(/\b(r1|r2|r3|v1|v2)\b/gi, '').trim() || expandedQuery.trim();
+    const hasKeycapWord = /\b(keycap|keycaps|키캡)\b/i.test(expandedQuery);
     const searchTerms = [
-      hasKeycapWord ? `"${rawQuery}"` : `"${rawQuery}" keycaps`,
-      hasKeycapWord ? rawQuery : `${rawQuery} keycaps`,
+      hasKeycapWord ? `"${expandedQuery}"` : `"${expandedQuery}" keycaps`,
+      hasKeycapWord ? expandedQuery : `${expandedQuery} keycaps`,
       `${cleanQ} keycap set`
     ];
 
