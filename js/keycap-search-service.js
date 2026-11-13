@@ -394,19 +394,23 @@ class KeycapSearchService {
 
   /**
    * Strict Token Matching Scorer.
-   * - Respects explicit brand prefixes (e.g. "Keykobo ..." vs "GMK ...").
+   * - Respects explicit brand prefixes anywhere in title or vendor (e.g. "Keykobo ..." vs "GMK ..." vs "osume").
+   * - Strips store tags ([In-Stock], [Group-Buy], [Pre-Order]) before tokenizing.
    * - Separates revision modifiers (r1, r2, r3, v2, cyl) from core name tokens
    *   so "GMK Bento R2" never false-matches random "R2" keycaps.
    * - Requires ALL core query tokens to match discrete target tokens (or Korean substrings).
    */
-  calculateMatchScore(targetName, keywords = [], rawQuery) {
+  calculateMatchScore(targetName, keywords = [], rawQuery, targetVendor = '') {
     const normQuery = (rawQuery || '').toLowerCase().trim();
     if (!normQuery) return 0;
 
-    const brandRx = /^(gmk|sa|epbt|dsa|kat|kam|pbtfans|keykobo|kkb|mw|kbs|tut|osume|dmk|domikey|crp|dcx|ws|sw|jtk|mt3|sp|nicepbt)\b/i;
-    const qBrandMatch = normQuery.match(brandRx);
-    const tBrandMatch = (targetName || '').toLowerCase().trim().match(brandRx);
+    const stripStoreTags = (s) =>
+      (s || '').replace(/\[[^\]]*\]|\((?:in[- ]?stock|group[- ]?buy|pre[- ]?order|gb|extras)[^)]*\)/gi, ' ').trim();
 
+    const normTarget = stripStoreTags(targetName).toLowerCase();
+    const normVendor = (targetVendor || '').toLowerCase().trim();
+
+    const brandWordRx = /\b(gmk|sa|epbt|dsa|kat|kam|pbtfans|keykobo|kkb|mw|kbs|tut|osume|dmk|domikey|crp|dcx|ws|sw|jtk|mt3|sp|nicepbt)\b/gi;
     const normalizeBrandToken = (b) => {
       const lower = b.toLowerCase();
       if (lower === 'kkb') return 'keykobo';
@@ -414,20 +418,38 @@ class KeycapSearchService {
       return lower;
     };
 
-    // If user explicitly specified a brand (e.g. "Keykobo") and target has a different brand ("GMK"), reject
-    if (qBrandMatch && tBrandMatch) {
-      const qB = normalizeBrandToken(qBrandMatch[1]);
-      const tB = normalizeBrandToken(tBrandMatch[1]);
-      if (qB !== tB) return 0;
+    const extractBrands = (str) => {
+      const matches = (str || '').match(brandWordRx) || [];
+      return [...new Set(matches.map(normalizeBrandToken))];
+    };
+
+    const qBrands = extractBrands(normQuery);
+    const tBrands = extractBrands(`${normTarget} ${normVendor}`);
+
+    if (qBrands.length > 0) {
+      const qB = qBrands[0];
+      // Reject if target title or vendor belongs to a different known brand (e.g. "osume" vs "gmk")
+      if (tBrands.some(tb => tb !== qB)) {
+        return 0;
+      }
+      // For Shopify vendor products (where targetVendor is provided), require positive brand confirmation
+      if (normVendor) {
+        const hasGmkProfileHint = qB === 'gmk' && /\b(cyl|mtnu)\b/i.test(normTarget);
+        if (!tBrands.includes(qB) && !hasGmkProfileHint) {
+          return 0;
+        }
+      }
     }
 
-    const stripBrandRx = /^(gmk|sa|epbt|dsa|kat|kam|pbtfans|keykobo|kkb|mw|kbs|tut|osume|dmk|domikey|crp|dcx|ws|sw|jtk|mt3|sp|nicepbt)\s+/i;
-    const noiseWords = new Set(['keycaps', 'keycap', 'set', 'kit', 'base', 'cyl', 'mtnu', 'cherry', 'profile', 'doubleshot', 'pbt', 'abs', '키캡']);
+    const noiseWords = new Set([
+      'keycaps', 'keycap', 'set', 'kit', 'base', 'cyl', 'mtnu', 'cherry', 'profile',
+      'doubleshot', 'pbt', 'abs', '키캡', 'in', 'stock', 'group', 'buy', 'preorder', 'pre', 'order'
+    ]);
     const modifierWords = new Set(['r1', 'r2', 'r3', 'r4', 'r5', 'v1', 'v2', 'v3', 'round']);
 
     const tokenize = (str) => {
-      const withoutBrand = str.toLowerCase().trim().replace(stripBrandRx, '');
-      const cleaned = withoutBrand.replace(/[^a-z0-9가-힣\s]/g, ' ').trim();
+      const withoutBrands = (str || '').toLowerCase().replace(brandWordRx, ' ');
+      const cleaned = withoutBrands.replace(/[^a-z0-9가-힣\s]/g, ' ').trim();
       const rawTokens = cleaned.split(/\s+/).filter(Boolean).filter(t => !noiseWords.has(t));
       const core = rawTokens.filter(t => !modifierWords.has(t));
       const mods = rawTokens.filter(t => modifierWords.has(t));
@@ -441,7 +463,6 @@ class KeycapSearchService {
     const qParsed = tokenize(normQuery);
     if (qParsed.core.length === 0) return 0;
 
-    const normTarget = (targetName || '').toLowerCase().trim();
     const tParsed = tokenize(normTarget);
     if (tParsed.core.length === 0) return 0;
 
@@ -654,7 +675,7 @@ class KeycapSearchService {
       const rawImage = prod.image || prod.featured_image?.url || '';
       if (!rawImage) continue;
 
-      const score = this.calculateMatchScore(title, [ `${prod.vendor || ''} ${title}`.trim() ], rawQuery);
+      const score = this.calculateMatchScore(title, [], rawQuery, prod.vendor || '');
       if (score >= 450) {
         const cleanImg = rawImage.startsWith('//') ? `https:${rawImage}` : rawImage;
         scoredProducts.push({
@@ -671,74 +692,84 @@ class KeycapSearchService {
     if (scoredProducts.length === 0) return [];
     scoredProducts.sort((a, b) => b.score - a.score);
 
-    // Fetch full product gallery (/products/<handle>.js) for the top match to provide all kit/render photos
-    const bestProd = scoredProducts[0];
-    const galleryCandidates = [];
-    const seenUrls = new Set();
-
-    const addCandidate = (title, url) => {
-      if (!url) return;
-      const normalized = url.startsWith('//') ? `https:${url}` : url;
-      const baseKey = normalized.split('?')[0];
-      if (seenUrls.has(baseKey)) return;
-      seenUrls.add(baseKey);
-      galleryCandidates.push({ title, url: normalized });
-    };
-
-    if (bestProd.url && bestProd.url.includes('/products/')) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3200);
-      try {
-        const prodJsUrl = `https://r.jina.ai/https://${bestProd.domain}${bestProd.url}.js`;
-        const res = await fetch(prodJsUrl, { signal: controller.signal });
-        clearTimeout(timeoutId);
-        if (res.ok) {
-          const text = await res.text();
-          const jsonStart = text.indexOf('{');
-          if (jsonStart !== -1) {
-            const prodData = JSON.parse(text.slice(jsonStart));
-            if (Array.isArray(prodData.images)) {
-              prodData.images.slice(0, 12).forEach((imgUrl, idx) => {
-                addCandidate(`${bestProd.title} (${idx + 1})`, imgUrl);
-              });
-            }
-          }
-        }
-      } catch {
-        clearTimeout(timeoutId);
-      }
+    // Keep up to top 3 distinct matched products (avoid mixing different sets into one gallery)
+    const uniqueProds = [];
+    const seenTitles = new Set();
+    for (const prod of scoredProducts) {
+      const key = prod.title.toLowerCase().replace(/\[[^\]]*\]/g, '').trim();
+      if (seenTitles.has(key)) continue;
+      seenTitles.add(key);
+      uniqueProds.push(prod);
+      if (uniqueProds.length >= 3) break;
     }
 
-    // Also include images from other high-scoring matched products
-    scoredProducts.slice(0, 8).forEach(p => {
-      addCandidate(p.title, p.image);
-    });
+    const buildVendorSet = async (prod) => {
+      const galleryCandidates = [];
+      const seenUrls = new Set();
 
-    if (galleryCandidates.length === 0) return [];
+      const addCandidate = (title, url) => {
+        if (!url) return;
+        const normalized = url.startsWith('//') ? `https:${url}` : url;
+        const baseKey = normalized.split('?')[0];
+        if (seenUrls.has(baseKey)) return;
+        seenUrls.add(baseKey);
+        galleryCandidates.push({ title, url: normalized });
+      };
 
-    return [
-      {
+      if (prod.url && prod.url.includes('/products/')) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3200);
+        try {
+          const prodJsUrl = `https://r.jina.ai/https://${prod.domain}${prod.url}.js`;
+          const res = await fetch(prodJsUrl, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (res.ok) {
+            const text = await res.text();
+            const jsonStart = text.indexOf('{');
+            if (jsonStart !== -1) {
+              const prodData = JSON.parse(text.slice(jsonStart));
+              if (Array.isArray(prodData.images)) {
+                prodData.images.slice(0, 12).forEach((imgUrl, idx) => {
+                  addCandidate(`${prod.title} (${idx + 1})`, imgUrl);
+                });
+              }
+            }
+          }
+        } catch {
+          clearTimeout(timeoutId);
+        }
+      }
+
+      addCandidate(prod.title, prod.image);
+      if (galleryCandidates.length === 0) return null;
+
+      return {
         source: 'vendor',
-        score: bestProd.score,
-        name: bestProd.title,
-        manufacturer: bestProd.vendor || '',
+        score: prod.score,
+        name: prod.title,
+        manufacturer: prod.vendor || '',
         profile: '',
         material: '',
         representative: galleryCandidates[0].url,
         candidates: galleryCandidates.slice(0, 12)
-      }
-    ];
+      };
+    };
+
+    const builtSets = await Promise.all(uniqueProds.map(buildVendorSet));
+    return builtSets.filter(Boolean);
   }
 
   /**
    * Stage 4: Live Web Image Search fallback via Bing Images (CORS-accessible via r.jina.ai)
    * Strictly filters to genuine OIP photo thumbnails (excluding 12x12 ODF favicons & InlineBlock ads)
-   * and retries once automatically if the proxy times out on cold start.
+   * and tries exact quoted phrase first before broader fallback.
    */
   async searchWebImagesFallback(rawQuery) {
     const cleanQ = rawQuery.replace(/\b(r1|r2|r3|v1|v2)\b/gi, '').trim() || rawQuery.trim();
+    const hasKeycapWord = /\b(keycap|keycaps|키캡)\b/i.test(rawQuery);
     const searchTerms = [
-      /\b(keycap|keycaps|키캡)\b/i.test(rawQuery) ? rawQuery : `${rawQuery} keycaps`,
+      hasKeycapWord ? `"${rawQuery}"` : `"${rawQuery}" keycaps`,
+      hasKeycapWord ? rawQuery : `${rawQuery} keycaps`,
       `${cleanQ} keycap set`
     ];
 
