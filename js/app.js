@@ -1325,8 +1325,18 @@ class App {
 
   removeKeycapImage() {
     this.keycapUploadedImage = '';
+    this.selectedKeycapCandidateUrl = '';
     this.updateKeycapImageSlot();
     this.showToast('키캡 사진이 제거되었습니다.', 'info');
+  }
+
+  // Preview a searched candidate in the bottom thumbnail slot without committing until apply/save
+  previewCandidateInKeycapSlot(url) {
+    if (!url || !this.previewKcImg || !this.placeholderKcImg || !this.btnRemoveKcImg) return;
+    this.previewKcImg.src = url;
+    this.previewKcImg.style.display = 'block';
+    this.placeholderKcImg.style.display = 'none';
+    this.btnRemoveKcImg.style.display = 'flex';
   }
 
   async handleKeycapManualUpload(e) {
@@ -1490,6 +1500,7 @@ class App {
       : `대표 렌더 및 후보 ${this.currentKeycapCandidates.length}장`;
     this.kcSearchPreviewImg.src = set.representative;
     this.kcSearchPreviewTag.textContent = this.currentKeycapCandidates[0]?.title || '대표 렌더링';
+    this.previewCandidateInKeycapSlot(set.representative);
 
     // Auto-fill manufacturer/profile if empty
     const mfgInput = document.getElementById('kc-manufacturer-input');
@@ -1534,6 +1545,7 @@ class App {
         this.selectedKeycapCandidateUrl = cand.url;
         this.kcSearchPreviewImg.src = cand.url;
         this.kcSearchPreviewTag.textContent = cand.title;
+        this.previewCandidateInKeycapSlot(cand.url);
 
         this.kcCandidateGrid.querySelectorAll('.kc-candidate-item').forEach(el => el.classList.remove('active'));
         item.classList.add('active');
@@ -1589,10 +1601,28 @@ class App {
       this.kcSearchConfirmBox.style.display = 'none';
     }
     this.resetKeycapSearchState();
+    this.updateKeycapImageSlot();
   }
 
-  handleKeycapSubmit(e) {
+  async resolveSelectedCandidateForSave() {
+    if (!this.selectedKeycapCandidateUrl) return '';
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('WebP conversion timeout')), 5000)
+    );
+    try {
+      return await Promise.race([
+        keycapSearchService.convertUrlToWebP(this.selectedKeycapCandidateUrl, 600, 0.82),
+        timeoutPromise
+      ]);
+    } catch (err) {
+      console.warn('Auto WebP conversion fallback to URL on save:', err);
+      return this.selectedKeycapCandidateUrl;
+    }
+  }
+
+  async handleKeycapSubmit(e) {
     e.preventDefault();
+    if (this.isSavingKeycap) return;
 
     let name = normalizeBrandName(document.getElementById('kc-name-input').value.trim());
     if (!name) {
@@ -1618,23 +1648,48 @@ class App {
 
     const customFields = this.collectDynamicFields(this.keycapDynamicFieldsList);
 
-    const keycapData = {
-      id: this.activeKeycapId,
-      name,
-      manufacturer,
-      profile,
-      material,
-      status,
-      mountedOnKeyboardId,
-      mountedOnKeyboardName,
-      image: this.keycapUploadedImage || '',
-      notes,
-      customFields
-    };
+    const submitBtn = this.keycapForm?.querySelector('button[type="submit"]');
+    const originalBtnText = submitBtn ? submitBtn.textContent : '저장하기';
+    this.isSavingKeycap = true;
 
-    store.saveKeycap(keycapData);
-    this.closeModal(this.keycapModal);
-    this.showToast(this.activeKeycapId ? '키캡 정보가 수정되었습니다.' : '새 키캡이 저장되었습니다.', 'success');
+    try {
+      // Auto-apply selected search candidate even if user clicked [저장하기] directly without [이 사진 적용]
+      if (this.kcSearchConfirmBox && this.kcSearchConfirmBox.style.display !== 'none' && this.selectedKeycapCandidateUrl) {
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = '사진 적용 및 저장 중...';
+        }
+        const resolvedImg = await this.resolveSelectedCandidateForSave();
+        if (resolvedImg) {
+          this.keycapUploadedImage = resolvedImg;
+        }
+        this.closeKeycapSearchBox();
+      }
+
+      const keycapData = {
+        id: this.activeKeycapId,
+        name,
+        manufacturer,
+        profile,
+        material,
+        status,
+        mountedOnKeyboardId,
+        mountedOnKeyboardName,
+        image: this.keycapUploadedImage || '',
+        notes,
+        customFields
+      };
+
+      store.saveKeycap(keycapData);
+      this.closeModal(this.keycapModal);
+      this.showToast(this.activeKeycapId ? '키캡 정보가 수정되었습니다.' : '새 키캡이 저장되었습니다.', 'success');
+    } finally {
+      this.isSavingKeycap = false;
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalBtnText;
+      }
+    }
   }
 
   // ==================== SPEC SHEET MODAL ====================

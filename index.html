@@ -14,9 +14,9 @@
   <link rel="apple-touch-icon" href="icons/icon.svg">
 
   <!-- Stylesheets -->
-  <link rel="stylesheet" href="css/main.css?v=23">
-  <link rel="stylesheet" href="css/components.css?v=23">
-  <link rel="stylesheet" href="css/responsive.css?v=23">
+  <link rel="stylesheet" href="css/main.css?v=24">
+  <link rel="stylesheet" href="css/components.css?v=24">
+  <link rel="stylesheet" href="css/responsive.css?v=24">
 
   <!-- Instant Theme Initializer -->
   <script>
@@ -611,7 +611,7 @@
               </div>
 
               <div class="kc-search-actions-panel">
-                <div class="kc-actions-desc">이 사진을 키캡 썸네일로 등록할까요?</div>
+                <div class="kc-actions-desc">후보를 클릭하면 바로 선택되며, 하단 <strong>[저장하기]</strong> 시 자동 적용됩니다.</div>
                 <div class="kc-actions-btn-group">
                   <button type="button" id="btn-kc-apply-photo" class="btn btn-primary btn-sm">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1058,7 +1058,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js?v=23', { updateViaCache: 'none' })
+        navigator.serviceWorker.register('./service-worker.js?v=24', { updateViaCache: 'none' })
           .then(reg => {
             console.log('ServiceWorker registered:', reg.scope);
             // Check for updates on every app launch
@@ -1079,7 +1079,7 @@
   </script>
 
   <!-- Application Logic Modules -->
-  <script type="module" src="js/app.js?v=23"></script>
+  <script type="module" src="js/app.js?v=24"></script>
 
 </body>
 
