@@ -407,8 +407,13 @@ class KeycapSearchService {
     const stripStoreTags = (s) =>
       (s || '').replace(/\[[^\]]*\]|\((?:in[- ]?stock|group[- ]?buy|pre[- ]?order|gb|extras)[^)]*\)/gi, ' ').trim();
 
-    const normTarget = stripStoreTags(targetName).toLowerCase();
-    const normVendor = (targetVendor || '').toLowerCase().trim();
+    // Normalize Unicode diacritics (e.g. "MÜT" -> "mut") so accented keycap names match ASCII queries
+    const foldDiacritics = (s) =>
+      (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    const normTarget = foldDiacritics(stripStoreTags(targetName)).toLowerCase();
+    const normVendor = foldDiacritics(targetVendor).toLowerCase().trim();
+    const foldedQuery = foldDiacritics(normQuery);
 
     const brandWordRx = /\b(gmk|sa|epbt|dsa|kat|kam|pbtfans|key\s*kobo|kkb|milky\s*way|mw|keyboard\s*science|kbs|tut|osume|dmk|domikey|crp|dcx|ws|sw|jtk|mt3|sp|nicepbt)\b/gi;
     const normalizeBrandToken = (b) => {
@@ -425,7 +430,7 @@ class KeycapSearchService {
       return [...new Set(matches.map(normalizeBrandToken))];
     };
 
-    const qBrands = extractBrands(normQuery);
+    const qBrands = extractBrands(foldedQuery);
     const tBrands = extractBrands(`${normTarget} ${normVendor}`);
 
     if (qBrands.length > 0) {
@@ -450,7 +455,7 @@ class KeycapSearchService {
     const modifierWords = new Set(['r1', 'r2', 'r3', 'r4', 'r5', 'v1', 'v2', 'v3', 'round']);
 
     const tokenize = (str) => {
-      const withoutBrands = (str || '').toLowerCase().replace(brandWordRx, ' ');
+      const withoutBrands = foldDiacritics(str).toLowerCase().replace(brandWordRx, ' ');
       const cleaned = withoutBrands.replace(/[^a-z0-9가-힣\s]/g, ' ').trim();
       const rawTokens = cleaned.split(/\s+/).filter(Boolean).filter(t => !noiseWords.has(t));
       const core = rawTokens.filter(t => !modifierWords.has(t));
@@ -462,7 +467,7 @@ class KeycapSearchService {
       };
     };
 
-    const qParsed = tokenize(normQuery);
+    const qParsed = tokenize(foldedQuery);
     if (qParsed.core.length === 0) return 0;
 
     const tParsed = tokenize(normTarget);
@@ -591,19 +596,8 @@ class KeycapSearchService {
       }
     }
 
-    // Stage 3: Fast Global Vendor Shopify JSON Search (for Keykobo, PBTfans, Osume, MW, ePBT, or newer GMK sets)
-    if (matchedSets.length === 0) {
-      try {
-        const vendorResults = await this.searchVendorCatalogsParallel(rawQuery);
-        if (vendorResults && vendorResults.length > 0) {
-          matchedSets.push(...vendorResults);
-        }
-      } catch (err) {
-        console.warn('Vendor catalog search failed:', err);
-      }
-    }
-
-    // Stage 4: Strict Bing OIP Image Search Fallback (with automatic retry)
+    // Stage 3: Universal Web Image Search (Naver for Korean, Brave -> Bing for Global)
+    // Single-request search across all keycap vendors, makers, and communities without vendor bias or 429 bursts.
     if (matchedSets.length === 0) {
       try {
         const webResult = await this.searchWebImagesFallback(rawQuery);
@@ -628,26 +622,27 @@ class KeycapSearchService {
   }
 
   /**
-   * Stage 3: Fast Parallel Shopify JSON Search across major keyboard vendors via r.jina.ai (~600ms).
-   * Accurately finds Keykobo, PBTfans, Osume, MW, ePBT, TUT, and newer GMK sets with official product renders.
+   * Stage 3: Fast Parallel Shopify JSON Search routed by brand via r.jina.ai (~600ms).
+   * Queries only the 1-5 most relevant stores for the requested brand to stay well below proxy rate limits.
    */
   async searchVendorCatalogsParallel(rawQuery) {
-    const vendors = [
-      'swagkeys.com',
-      'divinikey.com',
-      'oblotzky.industries',
-      'novelkeys.com',
-      'osume.com',
-      'cannonkeys.com',
-      'unikeyboards.com',
-      'keebzncables.com',
-      'ktechs.store',
-      'prototypist.net',
-      'mechanicalkeyboards.com',
-      'elecfox.co',
-      'keybay.tech',
-      'qwertyqop.com'
-    ];
+    const qLower = rawQuery.toLowerCase();
+    let vendors;
+    if (/^(gmk)\b/i.test(qLower)) {
+      vendors = ['typemachina.com', 'oblotzky.industries', 'novelkeys.com', 'swagkeys.com', 'divinikey.com'];
+    } else if (/^(kbs|keyboard\s*science)\b/i.test(qLower)) {
+      vendors = ['elecfox.co', 'keybay.tech', 'qwertyqop.com', 'divinikey.com', 'prototypist.net'];
+    } else if (/^(key\s*kobo|kkb)\b/i.test(qLower)) {
+      vendors = ['unikeyboards.com', 'keebzncables.com', 'ktechs.store', 'divinikey.com', 'prototypist.net'];
+    } else if (/^(osume)\b/i.test(qLower)) {
+      vendors = ['osume.com'];
+    } else if (/^(pbtfans)\b/i.test(qLower)) {
+      vendors = ['divinikey.com', 'swagkeys.com', 'cannonkeys.com', 'unikeyboards.com'];
+    } else if (/^(nicepbt)\b/i.test(qLower)) {
+      vendors = ['cannonkeys.com'];
+    } else {
+      vendors = ['divinikey.com', 'swagkeys.com', 'cannonkeys.com', 'unikeyboards.com', 'oblotzky.industries'];
+    }
 
     const excludeTitleRx = /\b(switch|switches|desk\s*mats?|desk\s*pads?|stabilizers?|stabs|wrist\s*rests?|cables?|coiled|artisan\s*trays?|trays?|carry(?:ing)?\s*cases?|lube|openers?|pullers?|films?|springs?|barebones?|pcbs?|plates?|foams?|stickers?|bags?|cloths?)\b/i;
 
@@ -770,8 +765,9 @@ class KeycapSearchService {
   }
 
   /**
-   * Stage 4: Live Web Image Search fallback via Naver Images (for Korean queries) & Bing Images
-   * Strictly filters to genuine photo thumbnails and excludes UI icons/banners.
+   * Stage 4: Universal Web Image Search fallback
+   * - Korean queries -> Naver Image Search
+   * - Global queries -> Brave Image Search (independent index across all vendors/communities) -> Bing Image Search backup
    */
   async searchWebImagesFallback(rawQuery) {
     const hasHangul = /[가-힣]/.test(rawQuery);
@@ -785,6 +781,10 @@ class KeycapSearchService {
       .replace(/\bkbs\b/gi, 'Keyboard Science')
       .replace(/\bkkb\b/gi, 'Keykobo')
       .replace(/\bmw\b/gi, 'Milkyway');
+
+    // Try Brave Image Search first (covers all global vendors/sites in 1 request, with descriptive alt titles)
+    const braveResult = await this.searchBraveImagesFallback(expandedQuery, rawQuery);
+    if (braveResult) return braveResult;
 
     const cleanQ = expandedQuery.replace(/\b(r1|r2|r3|v1|v2)\b/gi, '').trim() || expandedQuery.trim();
     const hasKeycapWord = /\b(keycap|keycaps|키캡)\b/i.test(expandedQuery);
@@ -869,6 +869,74 @@ class KeycapSearchService {
     }
 
     return null;
+  }
+
+  /**
+   * Universal Web Image Search via Brave Images (CORS-accessible via r.jina.ai).
+   * Searches across all keycap vendors, Geekhack, Reddit, and blogs in a single request.
+   */
+  async searchBraveImagesFallback(expandedQuery, displayQuery) {
+    const searchTerm = /\b(keycap|keycaps|키캡)\b/i.test(expandedQuery)
+      ? expandedQuery
+      : `${expandedQuery} keycaps`;
+    const targetUrl = `https://search.brave.com/images?q=${encodeURIComponent(searchTerm)}`;
+    const proxyUrl = `https://r.jina.ai/${targetUrl}`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 7500);
+
+    try {
+      const res = await fetch(proxyUrl, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (!res.ok) return null;
+
+      const text = await res.text();
+      const imgRegex = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
+      const candidates = [];
+      const seenUrls = new Set();
+
+      let match;
+      while ((match = imgRegex.exec(text)) !== null) {
+        const alt = (match[1] || '').trim();
+        const url = match[2].trim();
+
+        // Filter out Brave logos, 32x32 favicons, SVGs, and globe placeholders
+        if (
+          !url.includes('imgs.search.brave.com/') ||
+          url.includes('rs:fit:32:32') ||
+          url.includes('.svg') ||
+          alt === '🌐' ||
+          /brave logo/i.test(alt)
+        ) {
+          continue;
+        }
+
+        if (seenUrls.has(url)) continue;
+        seenUrls.add(url);
+
+        const cleanAlt = alt.replace(/^Image \d+:?\s*/i, '').trim();
+        const label = cleanAlt ? cleanAlt.slice(0, 32) : `웹 검색 결과 ${candidates.length + 1}`;
+        candidates.push({ title: label, url });
+        if (candidates.length >= 12) break;
+      }
+
+      if (candidates.length === 0) return null;
+
+      return {
+        source: 'web',
+        score: 320,
+        name: `${displayQuery} (웹 검색 결과)`,
+        manufacturer: '',
+        profile: '',
+        material: '',
+        representative: candidates[0].url,
+        candidates
+      };
+    } catch (err) {
+      clearTimeout(timeoutId);
+      console.warn('Brave image search fallback error:', err);
+      return null;
+    }
   }
 
   /**
