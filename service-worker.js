@@ -3,7 +3,7 @@
  * Provides offline caching for application shell and assets.
  */
 
-const CACHE_NAME = 'keyfolio-v1.0.28';
+const CACHE_NAME = 'keyfolio-v1.0.29';
 const ASSETS = [
   './',
   './index.html',

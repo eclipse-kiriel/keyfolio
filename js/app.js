@@ -1374,6 +1374,11 @@ class App {
     this.currentKeycapCandidates = [];
     this.selectedKeycapCandidateUrl = '';
 
+    if (this.btnKcAutoSearch) {
+      this.btnKcAutoSearch.disabled = false;
+      const btnText = this.btnKcAutoSearch.querySelector('span');
+      if (btnText) btnText.textContent = '사진 검색';
+    }
     if (this.kcMatchedSetsChips) this.kcMatchedSetsChips.innerHTML = '';
     if (this.kcMatchedSetsWrapper) this.kcMatchedSetsWrapper.style.display = 'none';
     if (this.kcCandidateGrid) this.kcCandidateGrid.innerHTML = '';
@@ -1407,14 +1412,14 @@ class App {
       }
     }
 
+    // Always clear previous keycap's search results BEFORE locking button
+    this.resetKeycapSearchState();
+    const currentReqId = this.searchRequestId;
+
     const btnText = this.btnKcAutoSearch.querySelector('span');
     const originalText = btnText ? btnText.textContent : '사진 검색';
     if (btnText) btnText.textContent = '검색 중...';
     this.btnKcAutoSearch.disabled = true;
-
-    // Always clear previous keycap's search results before starting a new search
-    this.resetKeycapSearchState();
-    const currentReqId = this.searchRequestId;
 
     // Update Google fallback link for current query
     const googleLink = document.getElementById('btn-kc-google-fallback');
@@ -1425,10 +1430,16 @@ class App {
     // Show confirm box in loading state
     this.kcSearchConfirmBox.style.display = 'block';
     this.kcSearchResultName.textContent = query;
-    this.kcSearchStatusText.textContent = '카탈로그 및 글로벌 스토어 검색 중...';
+    this.kcSearchStatusText.textContent = '카탈로그 및 웹 이미지 검색 중...';
 
     try {
-      const result = await keycapSearchService.searchKeycap(query);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Search timeout')), 15000)
+      );
+      const result = await Promise.race([
+        keycapSearchService.searchKeycap(query),
+        timeoutPromise
+      ]);
 
       // Ignore stale response if user started another search or closed modal
       if (currentReqId !== this.searchRequestId) return;
@@ -2222,6 +2233,9 @@ class App {
 
   closeModal(modalEl) {
     modalEl.classList.remove('active');
+    if (modalEl === this.keycapModal) {
+      this.closeKeycapSearchBox();
+    }
     const modalBody = modalEl.querySelector('.modal-body');
     if (modalBody) modalBody.scrollTop = 0;
     const modalContainer = modalEl.querySelector('.modal-container');
